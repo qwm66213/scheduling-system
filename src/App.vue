@@ -11,7 +11,6 @@ const menuItems = [
   { path: '/schedule', icon: 'Calendar', title: '排班表' },
   { path: '/attendance', icon: 'Checked', title: '考勤记录' },
   { path: '/staff', icon: 'User', title: '员工管理' },
-  { path: '/config', icon: 'Setting', title: '规则配置' },
 ]
 </script>
 
@@ -61,11 +60,11 @@ html, body, #app { height: 100%; }
 .main-area {
   background: #f0f2f5 !important;
   padding: 16px !important;
-  overflow: hidden !important;
+  overflow-y: auto !important;
   flex: 1 !important;
   height: 0 !important;
 }
 .main-view {
-  height: 100%;
+  min-height: 100%;
 }
 </style>

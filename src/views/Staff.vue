@@ -196,25 +196,25 @@ onUnmounted(() => {
       <!-- 表格 -->
       <div ref="tableWrapRef">
         <el-table :data="filteredData" v-loading="loading" stripe border :height="tableHeight" style="width: 100%;">
-          <el-table-column prop="name" label="姓名" width="120">
+          <el-table-column prop="name" label="姓名" min-width="100">
             <template #default="{ row }">
               {{ row.name }}
               <el-tag v-if="row.secondment_status" type="danger" size="small" style="margin-left: 4px;">借调</el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="position" label="岗位" width="120" />
-          <el-table-column prop="employment_type" label="用工" width="70" align="center">
+          <el-table-column prop="position" label="岗位" min-width="100" />
+          <el-table-column prop="employment_type" label="用工" min-width="70" align="center">
             <template #default="{ row }">
               <span :style="{ color: row.employment_type === '临时' ? '#e6a23c' : '#606266' }">{{ row.employment_type }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="monthly_salary" label="月薪" width="100" align="right">
+          <el-table-column prop="monthly_salary" label="月薪" min-width="90" align="right">
             <template #default="{ row }">¥{{ fmt(row.monthly_salary) }}</template>
           </el-table-column>
-          <el-table-column prop="daily_salary" label="日薪" width="90" align="right">
+          <el-table-column prop="daily_salary" label="日薪" min-width="80" align="right">
             <template #default="{ row }">¥{{ fmt(row.daily_salary) }}</template>
           </el-table-column>
-          <el-table-column prop="employment_status" label="状态" width="80" align="center">
+          <el-table-column prop="employment_status" label="状态" min-width="80" align="center">
             <template #default="{ row }">
               <el-tag :type="row.employment_status === '在职' ? 'success' : 'info'" size="small">{{ row.employment_status }}</el-tag>
             </template>
