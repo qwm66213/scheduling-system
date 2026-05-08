@@ -1,131 +1,550 @@
 <script setup>
-import { ref, onMounted } from 'vue'
-import { getRevenue, getAttendance } from '../utils/api'
-import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, BarChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
-
-use([CanvasRenderer, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
+import { ref, computed, onMounted, watch } from 'vue'
+import { getDashboardSummary } from '../utils/api'
 
 const loading = ref(true)
-const revenueTrend = ref({})
-const todaySchedule = ref([])
-const costSummary = ref({})
-const summaryCards = ref({ totalRevenue: 0, avgRevenue: 0, peakDay: '', totalStaff: 0 })
+const currentMonth = ref('')
+const data = ref(null)
+const activeTab = ref('front')
 
-onMounted(async () => {
+function initMonth() {
+  const now = new Date()
+  currentMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+function prevMonth() {
+  const [y, m] = currentMonth.value.split('-').map(Number)
+  const d = new Date(y, m - 2, 1)
+  currentMonth.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+function nextMonth() {
+  const [y, m] = currentMonth.value.split('-').map(Number)
+  const d = new Date(y, m, 1)
+  currentMonth.value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+const monthLabel = computed(() => {
+  if (!currentMonth.value) return ''
+  const [y, m] = currentMonth.value.split('-')
+  return `${y}年${parseInt(m)}月`
+})
+
+async function loadData() {
+  loading.value = true
   try {
-    const today = new Date()
-    const weekStart = new Date(today)
-    weekStart.setDate(today.getDate() - today.getDay() + 1)
-    const dates = []
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(weekStart)
-      d.setDate(weekStart.getDate() + i)
-      dates.push(d.toISOString().split('T')[0])
-    }
-
-    const [revenue, attendance] = await Promise.all([
-      getRevenue({ start_date: dates[0], end_date: dates[dates.length - 1] }),
-      getAttendance({ start_date: dates[0], end_date: dates[dates.length - 1] })
-    ])
-
-    // Revenue trend chart
-    const dateLabels = [...new Set(revenue.map(r => r.date))].sort()
-    const lunchData = dateLabels.map(d => (revenue.find(r => r.date === d && r.period === 'lunch') || {}).total_revenue || 0)
-    const dinnerData = dateLabels.map(d => (revenue.find(r => r.date === d && r.period === 'dinner') || {}).total_revenue || 0)
-    const totalData = dateLabels.map((d, i) => lunchData[i] + dinnerData[i])
-
-    revenueTrend.value = {
-      tooltip: { trigger: 'axis' },
-      legend: { data: ['午市', '晚市', '全天总计'] },
-      xAxis: { type: 'category', data: dateLabels.map(d => d.slice(5)) },
-      yAxis: { type: 'value', name: '营业额(元)' },
-      series: [
-        { name: '午市', type: 'bar', data: lunchData, itemStyle: { color: '#409eff' } },
-        { name: '晚市', type: 'bar', data: dinnerData, itemStyle: { color: '#67c23a' } },
-        { name: '全天总计', type: 'line', data: totalData, lineStyle: { width: 2 }, itemStyle: { color: '#e6a23c' } }
-      ]
-    }
-
-    // Summary cards
-    summaryCards.value.totalRevenue = totalData.reduce((a, b) => a + b, 0)
-    summaryCards.value.avgRevenue = totalData.length ? Math.round(summaryCards.value.totalRevenue / totalData.length) : 0
-    const peakIdx = totalData.indexOf(Math.max(...totalData))
-    summaryCards.value.peakDay = dateLabels[peakIdx] || '-'
-
-    // Attendance summary
-    const uniqueStaff = new Set(attendance.filter(a => a.status === 'check').map(a => a.employee_id))
-    summaryCards.value.totalStaff = uniqueStaff.size
-
-    // Today's attendance
-    const todayStr = today.toISOString().split('T')[0]
-    todaySchedule.value = attendance.filter(a => a.date === todayStr)
-
-    // Cost summary
-    costSummary.value = { dates: dateLabels, daily: totalData.map(t => Math.round(t * 0.15)) }
-
-    loading.value = false
-  } catch (e) {
-    console.error(e)
+    data.value = await getDashboardSummary({ month: currentMonth.value })
+  } finally {
     loading.value = false
   }
+}
+
+function fmt(n) {
+  return n != null ? n.toLocaleString() : '0'
+}
+
+function achieveClass(actual) {
+  if (actual >= 100) return 'achieve-pass'
+  if (actual >= 80) return 'achieve-warn'
+  return 'achieve-fail'
+}
+
+onMounted(() => {
+  initMonth()
+  loadData()
 })
+
+watch(currentMonth, loadData)
 </script>
 
 <template>
-  <div v-loading="loading">
-    <el-row :gutter="20" style="margin-bottom: 20px;">
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="本周总营业额" :value="summaryCards.totalRevenue" prefix="¥" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="日均营业额" :value="summaryCards.avgRevenue" prefix="¥" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="营业高峰日" :value="summaryCards.peakDay.slice(5)" />
-        </el-card>
-      </el-col>
-      <el-col :span="6">
-        <el-card shadow="hover">
-          <el-statistic title="在岗人数" :value="summaryCards.totalStaff" suffix="人" />
-        </el-card>
-      </el-col>
-    </el-row>
+  <div v-loading="loading" class="dashboard-page">
+    <div class="month-bar">
+      <el-button text size="small" @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
+      <span class="month-label">{{ monthLabel }}</span>
+      <el-button text size="small" @click="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+    </div>
 
-    <el-row :gutter="20">
-      <el-col :span="16">
-        <el-card shadow="hover">
-          <template #header><span style="font-weight: bold;">营业额趋势</span></template>
-          <v-chart :option="revenueTrend" style="height: 350px;" autoresize />
-        </el-card>
-      </el-col>
-      <el-col :span="8">
-        <el-card shadow="hover">
-          <template #header><span style="font-weight: bold;">今日排班</span></template>
-          <div v-if="todaySchedule.length === 0" style="color: #999; text-align: center; padding: 40px 0;">
-            暂无今日排班数据
+    <template v-if="data">
+      <div class="achieve-row">
+        <div class="achieve-card">
+          <div class="achieve-title">营业额达成率</div>
+          <div class="achieve-body">
+            <div class="achieve-item">
+              <span class="achieve-label">标准</span>
+              <span class="achieve-num">100%</span>
+            </div>
+            <div class="achieve-divider"></div>
+            <div class="achieve-item">
+              <span class="achieve-label">实际</span>
+              <span class="achieve-num" :class="achieveClass(data.revenueAchieve)">{{ data.revenueAchieve }}%</span>
+            </div>
+            <div class="achieve-bar-wrap">
+              <div class="achieve-bar" :style="{ width: Math.min(data.revenueAchieve, 150) / 1.5 + '%' }" :class="achieveClass(data.revenueAchieve)"></div>
+            </div>
           </div>
-          <el-table v-else :data="todaySchedule" size="small" stripe max-height="350">
-            <el-table-column prop="role" label="岗位" width="80" />
-            <el-table-column prop="staff_name" label="姓名" width="80" />
-            <el-table-column prop="period" label="班次" width="70">
-              <template #default="{ row }">
-                <el-tag :type="row.period === 'lunch' ? 'warning' : row.period === 'dinner' ? 'success' : 'primary'" size="small">
-                  {{ row.period === 'lunch' ? '午市' : row.period === 'dinner' ? '晚市' : '全天' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
-        </el-card>
-      </el-col>
-    </el-row>
+          <div class="daily-section">
+            <div class="daily-grid">
+              <div class="daily-row">
+                <div class="daily-label-cell">日期</div>
+                <div v-for="d in data.total.dailyStaff" :key="'rad-'+d.date" class="daily-cell daily-date">{{ d.date.slice(8) }}</div>
+              </div>
+              <div class="daily-row">
+                <div class="daily-label-cell">达成率</div>
+                <div v-for="d in data.total.dailyStaff" :key="'rav-'+d.date" class="daily-cell daily-val" :class="achieveClass(d.revenueAchieve)">{{ d.revenueAchieve ? d.revenueAchieve+'%' : '-' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="achieve-card">
+          <div class="achieve-title">人效达成率</div>
+          <div class="achieve-body">
+            <div class="achieve-item">
+              <span class="achieve-label">标准</span>
+              <span class="achieve-num">100%</span>
+            </div>
+            <div class="achieve-divider"></div>
+            <div class="achieve-item">
+              <span class="achieve-label">实际</span>
+              <span class="achieve-num" :class="achieveClass(data.effAchieve)">{{ data.effAchieve }}%</span>
+            </div>
+            <div class="achieve-bar-wrap">
+              <div class="achieve-bar" :style="{ width: Math.min(data.effAchieve, 150) / 1.5 + '%' }" :class="achieveClass(data.effAchieve)"></div>
+            </div>
+          </div>
+          <div class="daily-section">
+            <div class="daily-grid">
+              <div class="daily-row">
+                <div class="daily-label-cell">日期</div>
+                <div v-for="d in data.total.dailyStaff" :key="'ead-'+d.date" class="daily-cell daily-date">{{ d.date.slice(8) }}</div>
+              </div>
+              <div class="daily-row">
+                <div class="daily-label-cell">达成率</div>
+                <div v-for="d in data.total.dailyStaff" :key="'eav-'+d.date" class="daily-cell daily-val" :class="achieveClass(d.effAchieve)">{{ d.effAchieve ? d.effAchieve+'%' : '-' }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="seg-group">
+        <div class="seg-btn" :class="{ active: activeTab === 'front' }" @click="activeTab = 'front'">前厅</div>
+        <div class="seg-btn" :class="{ active: activeTab === 'back' }" @click="activeTab = 'back'">后厨</div>
+        <div class="seg-btn" :class="{ active: activeTab === 'total' }" @click="activeTab = 'total'">总数</div>
+      </div>
+
+      <!-- 前厅 -->
+      <div v-if="activeTab === 'front'" class="module-card">
+        <div class="module-title">前厅经营数据</div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">前厅人数标准</div>
+            <div class="pair-value">{{ data.front.staffStd }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">前厅人数（月均）</div>
+            <div class="pair-value">{{ data.front.staff }}</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">前厅净工资标准</div>
+            <div class="pair-value">¥{{ fmt(data.front.salaryStd) }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">前厅净工资</div>
+            <div class="pair-value">¥{{ fmt(data.front.salary) }}</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">前厅标准占比</div>
+            <div class="pair-value">{{ data.front.ratioStd }}%</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">前厅净工资占比</div>
+            <div class="pair-value">{{ data.front.ratio }}%</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">前厅标准人效</div>
+            <div class="pair-value">¥{{ fmt(data.front.standard.efficiency) }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">前厅人效</div>
+            <div class="pair-value">¥{{ fmt(data.front.efficiency) }}</div>
+          </div>
+        </div>
+
+        <!-- 每日前厅数据明细 -->
+        <div class="daily-section">
+          <div class="daily-title">每日前厅数据明细</div>
+          <div class="daily-grid">
+            <div class="daily-row">
+              <div class="daily-label-cell">日期</div>
+              <div v-for="d in data.front.dailyStaff" :key="d.date" class="daily-cell daily-date">{{ d.date.slice(8) }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">前厅人数</div>
+              <div v-for="d in data.front.dailyStaff" :key="'staff-'+d.date" class="daily-cell daily-val">{{ d.staff || '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">前厅净工资</div>
+              <div v-for="d in data.front.dailyStaff" :key="'sal-'+d.date" class="daily-cell daily-val">{{ d.salary ? '¥'+d.salary : '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">净工资占比</div>
+              <div v-for="d in data.front.dailyStaff" :key="'rat-'+d.date" class="daily-cell daily-val">{{ d.ratio ? d.ratio+'%' : '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">前厅人效</div>
+              <div v-for="d in data.front.dailyStaff" :key="'eff-'+d.date" class="daily-cell daily-val">{{ d.efficiency ? '¥'+d.efficiency : '-' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 后厨 -->
+      <div v-if="activeTab === 'back'" class="module-card">
+        <div class="module-title">后厨经营数据</div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">后厨人数标准</div>
+            <div class="pair-value">{{ data.back.staffStd }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">后厨人数（月均）</div>
+            <div class="pair-value">{{ data.back.staff }}</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">后厨净工资标准</div>
+            <div class="pair-value">¥{{ fmt(data.back.salaryStd) }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">后厨净工资</div>
+            <div class="pair-value">¥{{ fmt(data.back.salary) }}</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">后厨标准占比</div>
+            <div class="pair-value">{{ data.back.ratioStd }}%</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">后厨净工资占比</div>
+            <div class="pair-value">{{ data.back.ratio }}%</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">后厨标准人效</div>
+            <div class="pair-value">¥{{ fmt(data.back.standard.efficiency) }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">后厨人效</div>
+            <div class="pair-value">¥{{ fmt(data.back.efficiency) }}</div>
+          </div>
+        </div>
+
+        <!-- 每日后厨数据明细 -->
+        <div class="daily-section">
+          <div class="daily-title">每日后厨数据明细</div>
+          <div class="daily-grid">
+            <div class="daily-row">
+              <div class="daily-label-cell">日期</div>
+              <div v-for="d in data.back.dailyStaff" :key="d.date" class="daily-cell daily-date">{{ d.date.slice(8) }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">后厨人数</div>
+              <div v-for="d in data.back.dailyStaff" :key="'bstaff-'+d.date" class="daily-cell daily-val">{{ d.staff || '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">后厨净工资</div>
+              <div v-for="d in data.back.dailyStaff" :key="'bsal-'+d.date" class="daily-cell daily-val">{{ d.salary ? '¥'+d.salary : '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">净工资占比</div>
+              <div v-for="d in data.back.dailyStaff" :key="'brat-'+d.date" class="daily-cell daily-val">{{ d.ratio ? d.ratio+'%' : '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">后厨人效</div>
+              <div v-for="d in data.back.dailyStaff" :key="'beff-'+d.date" class="daily-cell daily-val">{{ d.efficiency ? '¥'+d.efficiency : '-' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 总数 -->
+      <div v-if="activeTab === 'total'" class="module-card">
+        <div class="module-title">总体经营数据</div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">总人数标准</div>
+            <div class="pair-value">{{ data.total.staffStd }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">总人数</div>
+            <div class="pair-value">{{ data.total.staff }}</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">总净工资标准</div>
+            <div class="pair-value">¥{{ fmt(data.total.salaryStd) }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">总净工资</div>
+            <div class="pair-value">¥{{ fmt(data.total.salary) }}</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">总标准占比</div>
+            <div class="pair-value">{{ data.total.ratioStd }}%</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">总占比</div>
+            <div class="pair-value">{{ data.total.ratio }}%</div>
+          </div>
+        </div>
+        <div class="pair-row">
+          <div class="pair-cell pair-left">
+            <div class="pair-label">总标准人效</div>
+            <div class="pair-value">¥{{ fmt(data.total.standard.efficiency) }}</div>
+          </div>
+          <div class="pair-cell pair-right">
+            <div class="pair-label">总人效</div>
+            <div class="pair-value">¥{{ fmt(data.total.efficiency) }}</div>
+          </div>
+        </div>
+        <!-- 每日总数数据明细 -->
+        <div class="daily-section">
+          <div class="daily-title">每日总数数据明细</div>
+          <div class="daily-grid">
+            <div class="daily-row">
+              <div class="daily-label-cell">日期</div>
+              <div v-for="d in data.total.dailyStaff" :key="d.date" class="daily-cell daily-date">{{ d.date.slice(8) }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">总人数</div>
+              <div v-for="d in data.total.dailyStaff" :key="'tstaff-'+d.date" class="daily-cell daily-val">{{ d.staff || '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">总净工资</div>
+              <div v-for="d in data.total.dailyStaff" :key="'tsal-'+d.date" class="daily-cell daily-val">{{ d.salary ? '¥'+d.salary : '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">净工资占比</div>
+              <div v-for="d in data.total.dailyStaff" :key="'trat-'+d.date" class="daily-cell daily-val">{{ d.ratio ? d.ratio+'%' : '-' }}</div>
+            </div>
+            <div class="daily-row">
+              <div class="daily-label-cell">总人效</div>
+              <div v-for="d in data.total.dailyStaff" :key="'teff-'+d.date" class="daily-cell daily-val">{{ d.efficiency ? '¥'+d.efficiency : '-' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
+
+<style scoped>
+.dashboard-page {
+  padding: 0;
+}
+.achieve-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.achieve-card {
+  flex: 1;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  overflow: hidden;
+}
+.achieve-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  padding: 12px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+.achieve-body {
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.achieve-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 72px;
+}
+.achieve-label {
+  font-size: 12px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.achieve-num {
+  font-size: 22px;
+  font-weight: 700;
+  color: #303133;
+}
+.achieve-num.achieve-pass { color: #67c23a; }
+.achieve-num.achieve-warn { color: #e6a23c; }
+.achieve-num.achieve-fail { color: #f56c6c; }
+.achieve-divider {
+  width: 1px;
+  height: 36px;
+  background: #ebeef5;
+}
+.achieve-bar-wrap {
+  flex: 1;
+  height: 8px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.achieve-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+.achieve-bar.achieve-pass { background: #67c23a; }
+.achieve-bar.achieve-warn { background: #e6a23c; }
+.achieve-bar.achieve-fail { background: #f56c6c; }
+.month-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.month-label {
+  font-size: 16px;
+  font-weight: 600;
+  color: #303133;
+  min-width: 100px;
+  text-align: center;
+}
+.seg-group {
+  display: flex;
+  background: #f5f7fa;
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+  margin-bottom: 16px;
+  width: fit-content;
+}
+.seg-btn {
+  padding: 5px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #606266;
+  transition: all 0.2s;
+  user-select: none;
+}
+.seg-btn:hover { color: #303133; }
+.seg-btn.active {
+  background: #fff;
+  color: #409eff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.module-card {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #ebeef5;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+.module-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #303133;
+  padding: 14px 20px;
+  border-bottom: 1px solid #ebeef5;
+}
+.pair-row {
+  display: flex;
+  border-bottom: 1px solid #f2f3f5;
+}
+.pair-row:last-child {
+  border-bottom: none;
+}
+.pair-cell {
+  flex: 1;
+  padding: 14px 20px;
+}
+.pair-left {
+  border-right: 1px solid #f2f3f5;
+  background: #fafbfc;
+}
+.pair-label {
+  font-size: 13px;
+  color: #909399;
+  margin-bottom: 6px;
+}
+.pair-value {
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+}
+.daily-section {
+  padding: 16px 20px;
+  border-top: 1px solid #ebeef5;
+}
+.daily-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 10px;
+}
+.daily-grid {
+  overflow-x: auto;
+}
+.daily-row {
+  display: flex;
+  min-width: max-content;
+}
+.daily-label-cell {
+  width: 80px;
+  min-width: 80px;
+  padding: 8px 6px;
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+  border: 1px solid #f2f3f5;
+  background: #fafbfc;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.daily-cell {
+  flex: 1;
+  min-width: 48px;
+  padding: 8px 4px;
+  font-size: 12px;
+  text-align: center;
+  border: 1px solid #f2f3f5;
+  color: #303133;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.daily-date {
+  color: #909399;
+  font-size: 11px;
+}
+.daily-val {
+  font-weight: 600;
+}
+</style>

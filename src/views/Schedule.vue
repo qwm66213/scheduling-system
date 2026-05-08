@@ -55,6 +55,26 @@ const filteredStaff = computed(() => {
   return list
 })
 
+// 14个时段列
+const dayColumns = computed(() => {
+  const cols = []
+  for (let i = 0; i < weekDates.value.length; i++) {
+    cols.push({ date: weekDates.value[i], dayIndex: i, period: 'am' })
+    cols.push({ date: weekDates.value[i], dayIndex: i, period: 'pm' })
+  }
+  return cols
+})
+
+// 7个日期表头
+const dayHeaders = computed(() => {
+  return weekDates.value.map((d, i) => ({ date: d, dayIndex: i }))
+})
+
+// Grid template: 2固定列 + 14等分列
+const gridTemplate = computed(() => {
+  return '76px 68px ' + 'repeat(14, 1fr)'
+})
+
 function getCellKey(empId, date, period) {
   return `${empId}_${date}_${period}`
 }
@@ -193,7 +213,6 @@ watch(weekOffset, async () => {
 
 <template>
   <div class="schedule-page">
-    <!-- 顶部栏 -->
     <div class="top-bar">
       <div class="top-left">
         <div class="week-nav">
@@ -210,49 +229,46 @@ watch(weekOffset, async () => {
       <el-button type="primary" size="small" @click="handleSave" class="save-btn">保存</el-button>
     </div>
 
-    <!-- 考勤网格 -->
     <div class="grid-wrap">
-      <table class="grid-table">
-        <thead>
-          <tr>
-            <th class="th-name" rowspan="2">姓名</th>
-            <th class="th-pos" rowspan="2">岗位</th>
-            <th v-for="(d, i) in weekDates" :key="d" class="th-day" colspan="2">
-              <div class="day-header">周{{ weekDays[i] }}</div>
-              <div class="day-date">{{ d.slice(5) }}</div>
-            </th>
-          </tr>
-          <tr>
-            <template v-for="d in weekDates" :key="'sub-'+d">
-              <th class="th-period">上午</th>
-              <th class="th-period">下午</th>
-            </template>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="emp in filteredStaff" :key="emp.id">
-            <td class="td-name">
-              {{ emp.name }}
-              <el-tag v-if="emp.secondment_status" type="danger" size="small" style="margin-left:2px;">借</el-tag>
-            </td>
-            <td class="td-pos">{{ emp.position }}</td>
-            <template v-for="d in weekDates" :key="emp.id+'-'+d">
-              <td class="td-cell" @click="onCellClick(emp.id, d, 'am', $event)">
-                <span class="cell-text">{{ getCellDisplay(emp.id, d, 'am') }}</span>
-              </td>
-              <td class="td-cell" @click="onCellClick(emp.id, d, 'pm', $event)">
-                <span class="cell-text">{{ getCellDisplay(emp.id, d, 'pm') }}</span>
-              </td>
-            </template>
-          </tr>
-          <tr v-if="filteredStaff.length === 0">
-            <td colspan="16" style="text-align:center; color:#999; padding:40px 0;">暂无在职员工</td>
-          </tr>
-        </tbody>
-      </table>
+      <div class="grid-container" :style="{ gridTemplateColumns: gridTemplate }">
+        <!-- 表头第一行 -->
+        <div class="g-cell g-header g-name" style="grid-row:1;grid-column:1;">姓名</div>
+        <div class="g-cell g-header g-pos" style="grid-row:1;grid-column:2;">岗位</div>
+        <div v-for="(h, idx) in dayHeaders" :key="h.date"
+          class="g-cell g-header g-day"
+          :style="{ gridRow: 1, gridColumn: (3 + idx * 2) + ' / span 2' }">
+          <div class="day-header">周{{ weekDays[h.dayIndex] }}</div>
+          <div class="day-date">{{ h.date.slice(5) }}</div>
+        </div>
+
+        <!-- 表头第二行 -->
+        <div v-for="(c, idx) in dayColumns" :key="'p-'+c.date+'-'+c.period"
+          class="g-cell g-header g-period"
+          :style="{ gridRow: 2, gridColumn: 3 + idx }">
+          {{ c.period === 'am' ? '上午' : '下午' }}
+        </div>
+
+        <!-- 数据行 -->
+        <template v-for="(emp, empIdx) in filteredStaff" :key="emp.id">
+          <div class="g-cell g-name" :style="{ gridRow: 3 + empIdx, gridColumn: 1 }">
+            {{ emp.name }}<el-tag v-if="emp.secondment_status" type="danger" size="small" style="margin-left:2px;vertical-align:middle;">借</el-tag>
+          </div>
+          <div class="g-cell g-pos" :style="{ gridRow: 3 + empIdx, gridColumn: 2 }">{{ emp.position }}</div>
+          <div v-for="(c, idx) in dayColumns" :key="emp.id+'-'+c.date+'-'+c.period"
+            class="g-cell g-data"
+            :style="{ gridRow: 3 + empIdx, gridColumn: 3 + idx }"
+            @click="onCellClick(emp.id, c.date, c.period, $event)">
+            <span class="cell-text">{{ getCellDisplay(emp.id, c.date, c.period) }}</span>
+          </div>
+        </template>
+
+        <!-- 空数据 -->
+        <div v-if="filteredStaff.length === 0" class="g-cell g-empty" :style="{ gridRow: 3, gridColumn: '1 / -1' }">
+          暂无在职员工
+        </div>
+      </div>
     </div>
 
-    <!-- 下拉选择菜单 -->
     <Teleport to="body">
       <div
         v-if="dropdownVisible"
@@ -345,64 +361,79 @@ watch(weekOffset, async () => {
   min-height: 0;
   overflow: auto;
 }
-.grid-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+.grid-container {
+  display: grid;
+  min-width: fit-content;
 }
-.grid-table th, .grid-table td {
+.g-cell {
   border: 1px solid #ebeef5;
   padding: 0;
   text-align: center;
   color: #303133;
+  min-height: 0;
+  box-sizing: border-box;
 }
-.grid-table thead th {
+.g-header {
   background: #fafafa;
   font-weight: 500;
   color: #606266;
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
-.grid-table thead tr:nth-child(2) th {
-  top: 48px;
-  z-index: 1;
-}
-.th-name { width: 76px; font-size: 13px; }
-.th-pos { width: 68px; font-size: 13px; }
-.th-day { font-size: 13px; }
-.th-period {
-  font-size: 11px;
-  color: #909399;
-  font-weight: 400;
-}
-.day-header { font-size: 13px; font-weight: 500; }
-.day-date { font-size: 11px; color: #909399; margin-top: 1px; }
-.td-name {
+.g-name {
   text-align: left;
   padding-left: 10px;
   font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
 }
-.td-pos {
+.g-pos {
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.td-cell {
+.g-day {
+  font-size: 13px;
+}
+.g-period {
+  font-size: 11px;
+  color: #909399;
+  font-weight: 400;
+}
+.day-header { font-size: 13px; font-weight: 500; line-height: 1.4; }
+.day-date { font-size: 11px; color: #909399; line-height: 1.3; }
+.g-data {
   cursor: pointer;
   user-select: none;
   padding: 5px 0;
   transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.td-cell:hover { background: #f5f7fa; }
+.g-data:hover { background: #f5f7fa; }
 .cell-text {
   font-size: 14px;
   font-weight: 600;
   color: #303133;
+}
+.g-empty {
+  text-align: center;
+  color: #999;
+  padding: 40px 0;
+  grid-column: 1 / -1;
 }
 </style>
 

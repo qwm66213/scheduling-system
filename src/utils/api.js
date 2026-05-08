@@ -29,4 +29,7 @@ export const getConfig = () => api.get('/config').then(r => r.data)
 export const updateConfig = (key, value) => api.put(`/config/${key}`, { value }).then(r => r.data)
 export const resetConfig = () => api.post('/config/reset').then(r => r.data)
 
+// Dashboard
+export const getDashboardSummary = (params) => api.get('/dashboard/summary', { params }).then(r => r.data)
+
 export default api

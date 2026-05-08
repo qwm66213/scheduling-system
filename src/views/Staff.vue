@@ -211,6 +211,9 @@ onUnmounted(() => {
           <el-table-column prop="monthly_salary" label="月薪" width="100" align="right">
             <template #default="{ row }">¥{{ fmt(row.monthly_salary) }}</template>
           </el-table-column>
+          <el-table-column prop="daily_salary" label="日薪" width="90" align="right">
+            <template #default="{ row }">¥{{ fmt(row.daily_salary) }}</template>
+          </el-table-column>
           <el-table-column prop="employment_status" label="状态" width="80" align="center">
             <template #default="{ row }">
               <el-tag :type="row.employment_status === '在职' ? 'success' : 'info'" size="small">{{ row.employment_status }}</el-tag>

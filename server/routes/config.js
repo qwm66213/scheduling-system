@@ -74,7 +74,14 @@ router.post('/reset', (req, res) => {
     ]), desc: '晚市营业额区间与调整系数' },
     { key: 'min_consecutive_days', value: '1', desc: '最少连续工作天数' },
     { key: 'max_consecutive_days', value: '5', desc: '最多连续工作天数' },
-    { key: 'daily_wage', value: '180', desc: '日薪标准（元）' }
+    { key: 'daily_wage', value: '180', desc: '日薪标准（元）' },
+    { key: 'front_standard', value: JSON.stringify({ staff: 12, salary: 69195, ratio: 8.0, efficiency: 2800 }), desc: '前厅经营标准' },
+    { key: 'back_standard', value: JSON.stringify({ staff: 15, salary: 108117, ratio: 12.5, efficiency: 2200 }), desc: '后厨经营标准' },
+    { key: 'total_standard', value: JSON.stringify({ staff: 27, salary: 177312, ratio: 20.5, efficiency: 1200 }), desc: '总体经营标准' },
+    { key: 'revenue_target', value: '864936', desc: '月营业额目标' },
+    { key: 'efficiency_standard', value: JSON.stringify({ revenue: 100, efficiency: 100 }), desc: '达成率标准(%)' },
+    { key: 'front_extra', value: JSON.stringify({ hourly_hours: 0, secondment: 0 }), desc: '前厅小时工工时与借调人数' },
+    { key: 'back_extra', value: JSON.stringify({ hourly_hours: 0, secondment: 0 }), desc: '后厨小时工工时与借调人数' }
   ];
   const stmt = db.prepare("INSERT INTO scheduling_rules (rule_key, rule_value, description) VALUES (?, ?, ?)");
   for (const r of rules) { stmt.run([r.key, r.value, r.desc]); }
