@@ -195,7 +195,7 @@ onUnmounted(() => {
 
       <!-- 表格 -->
       <div ref="tableWrapRef">
-        <el-table :data="filteredData" v-loading="loading" stripe border :height="tableHeight" style="width: 100%;">
+        <el-table :data="filteredData" v-loading="loading" stripe border style="width: 100%;">
           <el-table-column prop="name" label="姓名" min-width="100">
             <template #default="{ row }">
               {{ row.name }}
@@ -276,7 +276,5 @@ onUnmounted(() => {
 
 <style scoped>
 .staff-page {
-  height: calc(100vh - 60px - 32px);
-  overflow: hidden;
 }
 </style>

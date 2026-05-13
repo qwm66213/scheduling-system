@@ -110,8 +110,20 @@ function onCellClick(empId, date, period, event) {
   event.stopPropagation()
   const cell = event.currentTarget
   const rect = cell.getBoundingClientRect()
-  dropdownX.value = rect.left
-  dropdownY.value = rect.bottom + 2
+  const dropdownHeight = 280
+  const dropdownWidth = 160
+  // 下方空间不够则向上弹出
+  if (rect.bottom + dropdownHeight > window.innerHeight) {
+    dropdownY.value = rect.top - dropdownHeight - 2
+  } else {
+    dropdownY.value = rect.bottom + 2
+  }
+  // 右侧空间不够则向左偏移
+  if (rect.left + dropdownWidth > window.innerWidth) {
+    dropdownX.value = rect.right - dropdownWidth
+  } else {
+    dropdownX.value = rect.left
+  }
   dropdownTarget.value = { empId, date, period }
   dropdownVisible.value = true
 }
@@ -296,10 +308,9 @@ watch(weekOffset, async () => {
 
 <style scoped>
 .schedule-page {
-  height: calc(100vh - 60px - 32px);
+  min-height: calc(100vh - 60px - 32px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   background: #fff;
   border-radius: 4px;
 }
@@ -358,7 +369,6 @@ watch(weekOffset, async () => {
 .save-btn { font-weight: 500; }
 .grid-wrap {
   flex: 1;
-  min-height: 0;
   overflow: auto;
 }
 .grid-container {

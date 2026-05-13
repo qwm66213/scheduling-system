@@ -23,23 +23,6 @@ const filteredData = computed(() => {
   return list
 })
 
-const summaryRow = computed(() => {
-  const data = filteredData.value
-  if (data.length === 0) return null
-  const sum = { check: 0, leave: 0, absent: 0, save: 0, annual: 0, second: 0, salary_days: 0, salary_pay: 0 }
-  for (const r of data) {
-    sum.check += r.check
-    sum.leave += r.leave
-    sum.absent += r.absent
-    sum.save += r.save
-    sum.annual += r.annual
-    sum.second += r.second
-    sum.salary_days += r.salary_days
-    sum.salary_pay += r.salary_pay
-  }
-  return sum
-})
-
 function prevMonth() {
   if (currentMonth.value === 1) {
     currentMonth.value = 12
@@ -105,69 +88,54 @@ watch(monthParam, () => {
 
     <!-- 表格 -->
     <div class="table-wrap">
-      <el-table :data="filteredData" v-loading="loading" stripe border style="width: 100%;" height="100%">
-        <el-table-column prop="name" label="姓名" width="90" fixed />
-        <el-table-column prop="position" label="岗位" width="90" />
-        <el-table-column prop="check" label="出勤(√)" width="85" align="center">
+      <el-table :data="filteredData" v-loading="loading" stripe border style="width: 100%;">
+        <el-table-column prop="name" label="姓名" min-width="80" fixed />
+        <el-table-column prop="position" label="岗位" min-width="80" />
+        <el-table-column prop="check" label="出勤(√)" min-width="75" align="center">
           <template #default="{ row }">{{ row.check }}</template>
         </el-table-column>
-        <el-table-column prop="leave" label="本休(O)" width="85" align="center">
+        <el-table-column prop="leave" label="本休(O)" min-width="75" align="center">
           <template #default="{ row }">{{ row.leave }}</template>
         </el-table-column>
-        <el-table-column prop="absent" label="旷工(旷)" width="85" align="center">
+        <el-table-column prop="absent" label="旷工(旷)" min-width="75" align="center">
           <template #default="{ row }">
             <span :style="{ color: row.absent > 0 ? '#f56c6c' : '' }">{{ row.absent }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="save" label="存休(存)" width="85" align="center">
+        <el-table-column prop="save" label="存休(存)" min-width="75" align="center">
           <template #default="{ row }">{{ row.save }}</template>
         </el-table-column>
-        <el-table-column prop="annual" label="年假(年)" width="85" align="center">
+        <el-table-column prop="annual" label="年假(年)" min-width="75" align="center">
           <template #default="{ row }">{{ row.annual }}</template>
         </el-table-column>
-        <el-table-column prop="second" label="借调(借)" width="85" align="center">
+        <el-table-column prop="second" label="借调(借)" min-width="75" align="center">
           <template #default="{ row }">{{ row.second }}</template>
         </el-table-column>
-        <el-table-column prop="salary_days" label="计薪天数" width="90" align="center">
+        <el-table-column prop="salary_days" label="计薪天数" min-width="80" align="center">
           <template #default="{ row }">
             <span style="font-weight: 600;">{{ row.salary_days }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="monthly_salary" label="月薪" width="90" align="right">
+        <el-table-column prop="monthly_salary" label="月薪" min-width="80" align="right">
           <template #default="{ row }">¥{{ fmt(row.monthly_salary) }}</template>
         </el-table-column>
-        <el-table-column prop="daily_salary" label="日薪" width="80" align="right">
+        <el-table-column prop="daily_salary" label="日薪" min-width="70" align="right">
           <template #default="{ row }">¥{{ fmt(row.daily_salary) }}</template>
         </el-table-column>
-        <el-table-column prop="salary_pay" label="应发工资" width="100" align="right">
+        <el-table-column prop="salary_pay" label="应发工资" min-width="90" align="right">
           <template #default="{ row }">
             <span style="font-weight: 600; color: #409eff;">¥{{ fmt(row.salary_pay) }}</span>
           </template>
         </el-table-column>
       </el-table>
-
-      <!-- 汇总行 -->
-      <div v-if="summaryRow" class="summary-bar">
-        <span class="summary-item">合计：<b>{{ filteredData.length }}</b> 人</span>
-        <span class="summary-item">出勤 <b>{{ summaryRow.check }}</b></span>
-        <span class="summary-item">本休 <b>{{ summaryRow.leave }}</b></span>
-        <span class="summary-item">旷工 <b :style="{ color: summaryRow.absent > 0 ? '#f56c6c' : '' }">{{ summaryRow.absent }}</b></span>
-        <span class="summary-item">存休 <b>{{ summaryRow.save }}</b></span>
-        <span class="summary-item">年假 <b>{{ summaryRow.annual }}</b></span>
-        <span class="summary-item">借调 <b>{{ summaryRow.second }}</b></span>
-        <span class="summary-item">计薪 <b>{{ summaryRow.salary_days }}</b></span>
-        <span class="summary-item">应发 <b style="color:#409eff;">¥{{ fmt(summaryRow.salary_pay) }}</b></span>
-      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .attendance-page {
-  height: calc(100vh - 60px - 32px);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   background: #fff;
   border-radius: 4px;
 }
@@ -224,27 +192,10 @@ watch(monthParam, () => {
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }
 .table-wrap {
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
 }
 .table-wrap :deep(.el-table) {
   flex: 1;
-}
-.summary-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  border-top: 1px solid #ebeef5;
-  background: #fafafa;
-  flex-shrink: 0;
-  font-size: 13px;
-  color: #606266;
-}
-.summary-item b {
-  color: #303133;
 }
 </style>
