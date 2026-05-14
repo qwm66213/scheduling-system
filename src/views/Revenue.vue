@@ -63,7 +63,7 @@ function buildDataMap(dataList) {
 const forecastMap = computed(() => buildDataMap(forecastData.value))
 const actualMap = computed(() => buildDataMap(actualData.value))
 
-const weekDays = ['一', '二', '三', '四', '五', '六', '日']
+const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
 function buildCalendarDays(dataMap) {
   const y = currentYear.value
@@ -71,9 +71,8 @@ function buildCalendarDays(dataMap) {
   const firstDay = new Date(y, m - 1, 1)
   const lastDay = new Date(y, m, 0)
   const daysInMonth = lastDay.getDate()
-  let startWeekday = firstDay.getDay()
-  if (startWeekday === 0) startWeekday = 7
-  const prefixEmpty = startWeekday - 1
+  const startWeekday = firstDay.getDay()
+  const prefixEmpty = startWeekday
   const days = []
   for (let i = 0; i < prefixEmpty; i++) days.push(null)
   for (let d = 1; d <= daysInMonth; d++) {
@@ -107,6 +106,28 @@ function formatMoney(v) {
 }
 
 const monthLabel = computed(() => `${currentYear.value}年${currentMonth.value}月`)
+
+const todayInfo = computed(() => {
+  const today = new Date()
+  const weekNames = ['日', '一', '二', '三', '四', '五', '六']
+  return {
+    date: today.toISOString().slice(0, 10),
+    weekday: '星期' + weekNames[today.getDay()]
+  }
+})
+
+const monthInfo = computed(() => {
+  const daysInMonth = new Date(currentYear.value, currentMonth.value, 0).getDate()
+  return {
+    label: `${currentYear.value}年${String(currentMonth.value).padStart(2, '0')}月`,
+    days: daysInMonth
+  }
+})
+
+function thisMonth() {
+  currentYear.value = new Date().getFullYear()
+  currentMonth.value = new Date().getMonth() + 1
+}
 
 function prevMonth() {
   if (currentMonth.value === 1) { currentMonth.value = 12; currentYear.value-- }
@@ -272,30 +293,31 @@ onMounted(() => {
 
 <template>
   <div class="revenue-page">
-    <!-- Month selector & total -->
-    <el-card shadow="hover" class="month-header-card">
-      <div class="month-header">
-        <div class="month-nav">
-          <el-button circle size="small" @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
-          <span class="month-label">{{ monthLabel }}</span>
-          <el-button circle size="small" @click="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
-        </div>
-        <div class="month-totals">
-          <div class="month-total-item">
-            <span class="month-total-label">预估总额</span>
-            <span class="month-total-value lunch-color">¥{{ formatMoney(forecastMonthTotal) }}</span>
-          </div>
-          <div class="month-total-item">
-            <span class="month-total-label">实际总额</span>
-            <span class="month-total-value dinner-color">¥{{ formatMoney(actualMonthTotal) }}</span>
-          </div>
-        </div>
+    <div class="time-cards">
+      <div class="time-card">
+        <div class="time-card-label">今天是</div>
+        <div class="time-card-value">{{ todayInfo.date }}</div>
+        <div class="time-card-sub">{{ todayInfo.weekday }}</div>
       </div>
-      <el-tabs v-model="activeTab" class="revenue-tabs">
-        <el-tab-pane label="预估午晚市" name="forecast" />
-        <el-tab-pane label="实际午晚市" name="actual" />
-      </el-tabs>
-    </el-card>
+      <div class="time-card active" @click="thisMonth">
+        <div class="time-card-label">本月</div>
+        <div class="time-card-value">
+          <el-button text size="small" class="card-arrow" @click.stop="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
+          {{ monthInfo.label }}
+          <el-button text size="small" class="card-arrow" @click.stop="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+        </div>
+        <div class="time-card-sub">共 {{ monthInfo.days }} 天</div>
+      </div>
+    </div>
+
+    <div class="big-tabs">
+      <div class="big-tab" :class="{ active: activeTab === 'forecast' }" @click="activeTab = 'forecast'">
+        预估午晚市
+      </div>
+      <div class="big-tab" :class="{ active: activeTab === 'actual' }" @click="activeTab = 'actual'">
+        实际午晚市
+      </div>
+    </div>
 
     <!-- 预估月历 -->
     <template v-if="activeTab === 'forecast'">
@@ -313,6 +335,7 @@ onMounted(() => {
               <div class="cell-content">
                 <div class="cell-row lunch-color">午 ¥{{ formatMoney(item.lunch?.total_revenue || 0) }}</div>
                 <div class="cell-row dinner-color">晚 ¥{{ formatMoney(item.dinner?.total_revenue || 0) }}</div>
+                <div class="cell-row total-row">合 ¥{{ formatMoney(item.total) }}</div>
               </div>
             </template>
           </div>
@@ -336,6 +359,7 @@ onMounted(() => {
               <div class="cell-content">
                 <div class="cell-row lunch-color">午 ¥{{ formatMoney(item.lunch?.total_revenue || 0) }}</div>
                 <div class="cell-row dinner-color">晚 ¥{{ formatMoney(item.dinner?.total_revenue || 0) }}</div>
+                <div class="cell-row total-row">合 ¥{{ formatMoney(item.total) }}</div>
               </div>
             </template>
           </div>
@@ -465,36 +489,80 @@ onMounted(() => {
 <style scoped>
 .revenue-page { width: 100%; }
 
-.month-header-card :deep(.el-card__body) { padding: 10px 16px 0; }
-
-.month-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+.time-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  background: #fff;
 }
-
-.month-nav { display: flex; align-items: center; gap: 8px; }
-
-.month-label {
-  font-size: 16px;
-  font-weight: 700;
-  color: #303133;
-  min-width: 90px;
+.time-card {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 10px 14px;
   text-align: center;
+  transition: all 0.2s;
+}
+.time-card.active {
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  cursor: pointer;
+}
+.time-card-label {
+  font-size: 11px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.time-card-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 24px;
+}
+.time-card-sub {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+}
+.time-card.active .time-card-label { color: #409eff; }
+.time-card.active .time-card-value { color: #409eff; }
+.card-arrow {
+  padding: 2px;
+  color: #409eff !important;
 }
 
-.month-totals { display: flex; gap: 20px; }
-
-.month-total-item { display: flex; align-items: baseline; gap: 6px; }
-
-.month-total-label { font-size: 13px; color: #909399; }
+.big-tabs {
+  display: flex;
+  border-bottom: 2px solid #e4e7ed;
+  flex-shrink: 0;
+  background: #fff;
+}
+.big-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #909399;
+  background: #fafafa;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  user-select: none;
+}
+.big-tab:hover { color: #606266; }
+.big-tab.active {
+  color: #409eff;
+  background: #fff;
+  border-bottom-color: #409eff;
+  font-weight: 600;
+}
 
 .month-total-value { font-size: 18px; font-weight: 700; }
-
-.revenue-tabs :deep(.el-tabs__header) { margin-bottom: 0; }
-.revenue-tabs :deep(.el-tabs__item) { font-size: 13px; }
 
 .lunch-color { color: #e6a23c; }
 .dinner-color { color: #409eff; }
@@ -515,18 +583,21 @@ onMounted(() => {
   border-bottom: 1px solid #ebeef5;
 }
 
-.cal-weekday { text-align: center; padding: 6px 0; font-weight: 600; font-size: 12px; color: #606266; }
+.cal-weekday { text-align: center; padding: 8px 0; font-weight: 600; font-size: 13px; color: #606266; }
 
 .cal-body { display: grid; grid-template-columns: repeat(7, 1fr); }
 
 .cal-cell {
-  min-height: 58px;
-  padding: 4px 6px;
+  min-height: 72px;
+  padding: 6px 4px;
   border-right: 1px solid #f0f0f0;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   transition: all 0.15s;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .cal-cell:nth-child(7n) { border-right: none; }
@@ -536,18 +607,19 @@ onMounted(() => {
 .cal-cell.empty { background: #fafafa; cursor: default; }
 .cal-cell.empty:hover { box-shadow: none; }
 
-.cell-day { font-size: 12px; font-weight: 600; color: #606266; margin-bottom: 2px; }
+.cell-day { font-size: 13px; font-weight: 600; color: #606266; margin-bottom: 4px; text-align: center; }
 
 .cell-day.today {
   display: inline-block;
   background: #409eff;
   color: #fff;
   border-radius: 50%;
-  width: 20px; height: 20px; line-height: 20px; text-align: center;
+  width: 22px; height: 22px; line-height: 22px; text-align: center;
 }
 
-.cell-content { font-size: 10px; line-height: 1.4; }
+.cell-content { font-size: 12px; line-height: 1.6; text-align: center; width: 100%; }
 .cell-row { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.total-row { font-weight: 600; color: #303133; border-top: 1px solid #ebeef5; margin-top: 2px; padding-top: 2px; }
 
 /* Chart */
 .chart-card { margin-top: 10px; }

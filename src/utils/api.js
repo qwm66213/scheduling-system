@@ -24,11 +24,6 @@ export const initAttendance = (data) => api.post('/schedule/init', data).then(r 
 export const batchSaveAttendance = (records) => api.post('/schedule/batch', { records }).then(r => r.data)
 export const getAttendanceSummary = (params) => api.get('/schedule/summary', { params }).then(r => r.data)
 
-// Config
-export const getConfig = () => api.get('/config').then(r => r.data)
-export const updateConfig = (key, value) => api.put(`/config/${key}`, { value }).then(r => r.data)
-export const resetConfig = () => api.post('/config/reset').then(r => r.data)
-
 // Dashboard
 export const getDashboardSummary = (params) => api.get('/dashboard/summary', { params }).then(r => r.data)
 

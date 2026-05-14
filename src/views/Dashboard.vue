@@ -30,6 +30,36 @@ const monthLabel = computed(() => {
   return `${y}年${parseInt(m)}月`
 })
 
+const todayInfo = computed(() => {
+  const today = new Date()
+  const weekNames = ['日', '一', '二', '三', '四', '五', '六']
+  return {
+    date: today.toISOString().slice(0, 10),
+    weekday: '星期' + weekNames[today.getDay()]
+  }
+})
+
+const monthInfo = computed(() => {
+  if (!currentMonth.value) return { label: '', days: 0 }
+  const [y, m] = currentMonth.value.split('-').map(Number)
+  const daysInMonth = new Date(y, m, 0).getDate()
+  return {
+    label: `${y}年${String(m).padStart(2, '0')}月`,
+    days: daysInMonth
+  }
+})
+
+const yearInfo = computed(() => {
+  const y = new Date().getFullYear()
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  return { year: y, days: isLeap ? 366 : 365 }
+})
+
+function thisMonth() {
+  const now = new Date()
+  currentMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
 async function loadData() {
   loading.value = true
   try {
@@ -59,10 +89,26 @@ watch(currentMonth, loadData)
 
 <template>
   <div v-loading="loading" class="dashboard-page">
-    <div class="month-bar">
-      <el-button text size="small" @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
-      <span class="month-label">{{ monthLabel }}</span>
-      <el-button text size="small" @click="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+    <div class="time-cards">
+      <div class="time-card">
+        <div class="time-card-label">今天是</div>
+        <div class="time-card-value">{{ todayInfo.date }}</div>
+        <div class="time-card-sub">{{ todayInfo.weekday }}</div>
+      </div>
+      <div class="time-card active" @click="thisMonth">
+        <div class="time-card-label">本月</div>
+        <div class="time-card-value">
+          <el-button text size="small" class="card-arrow" @click.stop="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
+          {{ monthInfo.label }}
+          <el-button text size="small" class="card-arrow" @click.stop="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+        </div>
+        <div class="time-card-sub">共 {{ monthInfo.days }} 天</div>
+      </div>
+      <div class="time-card">
+        <div class="time-card-label">本年</div>
+        <div class="time-card-value">{{ yearInfo.year }}年</div>
+        <div class="time-card-sub">共 {{ yearInfo.days }} 天</div>
+      </div>
     </div>
 
     <template v-if="data">
@@ -169,11 +215,11 @@ watch(currentMonth, loadData)
         <div class="pair-row">
           <div class="pair-cell pair-left">
             <div class="pair-label">前厅标准人效</div>
-            <div class="pair-value">¥{{ fmt(data.front.standard.efficiency) }}</div>
+            <div class="pair-value">{{ fmt(data.front.standard.efficiency) }}</div>
           </div>
           <div class="pair-cell pair-right">
             <div class="pair-label">前厅人效</div>
-            <div class="pair-value">¥{{ fmt(data.front.efficiency) }}</div>
+            <div class="pair-value">{{ fmt(data.front.efficiency) }}</div>
           </div>
         </div>
 
@@ -199,7 +245,7 @@ watch(currentMonth, loadData)
             </div>
             <div class="daily-row">
               <div class="daily-label-cell">前厅人效</div>
-              <div v-for="d in data.front.dailyStaff" :key="'eff-'+d.date" class="daily-cell daily-val">{{ d.efficiency ? '¥'+d.efficiency : '-' }}</div>
+              <div v-for="d in data.front.dailyStaff" :key="'eff-'+d.date" class="daily-cell daily-val">{{ d.efficiency || '-' }}</div>
             </div>
           </div>
         </div>
@@ -241,11 +287,11 @@ watch(currentMonth, loadData)
         <div class="pair-row">
           <div class="pair-cell pair-left">
             <div class="pair-label">后厨标准人效</div>
-            <div class="pair-value">¥{{ fmt(data.back.standard.efficiency) }}</div>
+            <div class="pair-value">{{ fmt(data.back.standard.efficiency) }}</div>
           </div>
           <div class="pair-cell pair-right">
             <div class="pair-label">后厨人效</div>
-            <div class="pair-value">¥{{ fmt(data.back.efficiency) }}</div>
+            <div class="pair-value">{{ fmt(data.back.efficiency) }}</div>
           </div>
         </div>
 
@@ -271,7 +317,7 @@ watch(currentMonth, loadData)
             </div>
             <div class="daily-row">
               <div class="daily-label-cell">后厨人效</div>
-              <div v-for="d in data.back.dailyStaff" :key="'beff-'+d.date" class="daily-cell daily-val">{{ d.efficiency ? '¥'+d.efficiency : '-' }}</div>
+              <div v-for="d in data.back.dailyStaff" :key="'beff-'+d.date" class="daily-cell daily-val">{{ d.efficiency || '-' }}</div>
             </div>
           </div>
         </div>
@@ -313,11 +359,11 @@ watch(currentMonth, loadData)
         <div class="pair-row">
           <div class="pair-cell pair-left">
             <div class="pair-label">总标准人效</div>
-            <div class="pair-value">¥{{ fmt(data.total.standard.efficiency) }}</div>
+            <div class="pair-value">{{ fmt(data.total.standard.efficiency) }}</div>
           </div>
           <div class="pair-cell pair-right">
             <div class="pair-label">总人效</div>
-            <div class="pair-value">¥{{ fmt(data.total.efficiency) }}</div>
+            <div class="pair-value">{{ fmt(data.total.efficiency) }}</div>
           </div>
         </div>
         <!-- 每日总数数据明细 -->
@@ -342,7 +388,7 @@ watch(currentMonth, loadData)
             </div>
             <div class="daily-row">
               <div class="daily-label-cell">总人效</div>
-              <div v-for="d in data.total.dailyStaff" :key="'teff-'+d.date" class="daily-cell daily-val">{{ d.efficiency ? '¥'+d.efficiency : '-' }}</div>
+              <div v-for="d in data.total.dailyStaff" :key="'teff-'+d.date" class="daily-cell daily-val">{{ d.efficiency || '-' }}</div>
             </div>
           </div>
         </div>
@@ -354,6 +400,54 @@ watch(currentMonth, loadData)
 <style scoped>
 .dashboard-page {
   padding: 0;
+}
+.time-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.time-card {
+  background: #f5f7fa;
+  border-radius: 8px;
+  padding: 10px 14px;
+  text-align: center;
+  transition: all 0.2s;
+}
+.time-card.active {
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
+  cursor: pointer;
+}
+.time-card-label {
+  font-size: 11px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.time-card-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 24px;
+}
+.time-card-sub {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+}
+.time-card.active .time-card-label {
+  color: #409eff;
+}
+.time-card.active .time-card-value {
+  color: #409eff;
+}
+.card-arrow {
+  padding: 2px;
+  color: #409eff !important;
 }
 .achieve-row {
   display: flex;
@@ -420,20 +514,6 @@ watch(currentMonth, loadData)
 .achieve-bar.achieve-pass { background: #67c23a; }
 .achieve-bar.achieve-warn { background: #e6a23c; }
 .achieve-bar.achieve-fail { background: #f56c6c; }
-.month-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-.month-label {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-  min-width: 100px;
-  text-align: center;
-}
 .seg-group {
   display: flex;
   background: #f5f7fa;

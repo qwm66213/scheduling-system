@@ -54,13 +54,15 @@ const filteredData = computed(() => {
   const rank = activeTab.value === '后厨' ? backRank : frontRank
   const list = tableData.value.filter(r => {
     if (r.business_line !== activeTab.value) return false
-    if (searchName.value && !r.name.includes(searchName.value)) return false
     if (filterPosition.value && r.position !== filterPosition.value) return false
     return true
   })
   list.sort((a, b) => (rank[a.position] ?? 999) - (rank[b.position] ?? 999))
   return list
 })
+
+const backStaffCount = computed(() => tableData.value.filter(r => r.business_line === '后厨').length)
+const frontStaffCount = computed(() => tableData.value.filter(r => r.business_line === '前厅').length)
 
 function onSalaryChange() {
   if (form.value.monthly_salary > 0) {
@@ -91,6 +93,11 @@ function onTabChange() {
   searchName.value = ''
   filterPosition.value = ''
   calcTableHeight()
+}
+
+function switchTab(tab) {
+  activeTab.value = tab
+  onTabChange()
 }
 
 function openAdd() {
@@ -169,29 +176,17 @@ onUnmounted(() => {
 
 <template>
   <div class="staff-page">
-    <el-card shadow="hover">
-      <template #header>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-          <span style="font-weight: bold; font-size: 16px;">员工管理</span>
-          <el-button type="primary" @click="openAdd">
-            <el-icon><Plus /></el-icon> 新增员工
-          </el-button>
-        </div>
-      </template>
-
-      <!-- Tab 切换 -->
-      <el-tabs v-model="activeTab" @tab-change="onTabChange">
-        <el-tab-pane label="后厨" name="后厨" />
-        <el-tab-pane label="前厅" name="前厅" />
-      </el-tabs>
-
-      <!-- 筛选栏 -->
-      <div style="display: flex; gap: 10px; margin-bottom: 12px;">
-        <el-input v-model="searchName" placeholder="搜索姓名" clearable style="width: 160px;" :prefix-icon="'Search'" />
-        <el-select v-model="filterPosition" placeholder="筛选岗位" clearable style="width: 140px;">
-          <el-option v-for="p in currentPositions()" :key="p" :label="p" :value="p" />
-        </el-select>
+    <div class="staff-top-bar">
+      <el-button type="primary" @click="openAdd">新增员工</el-button>
+    </div>
+    <div class="big-tabs">
+      <div class="big-tab" :class="{ active: activeTab === '后厨' }" @click="switchTab('后厨')">
+        后厨 <span class="tab-count">{{ backStaffCount }}</span>
       </div>
+      <div class="big-tab" :class="{ active: activeTab === '前厅' }" @click="switchTab('前厅')">
+        前厅 <span class="tab-count">{{ frontStaffCount }}</span>
+      </div>
+    </div>
 
       <!-- 表格 -->
       <div ref="tableWrapRef">
@@ -216,25 +211,24 @@ onUnmounted(() => {
           </el-table-column>
           <el-table-column prop="employment_status" label="状态" min-width="80" align="center">
             <template #default="{ row }">
-              <el-tag :type="row.employment_status === '在职' ? 'success' : 'info'" size="small">{{ row.employment_status }}</el-tag>
+              <span style="color: #303133;">{{ row.employment_status }}</span>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="200" fixed="right">
             <template #default="{ row }">
-              <el-button type="primary" link size="small" @click="openEdit(row)">编辑</el-button>
-              <el-button :type="row.employment_status === '在职' ? 'warning' : 'success'" link size="small" @click="toggleStatus(row)">
+              <el-button type="primary" link size="default" @click="openEdit(row)">编辑</el-button>
+              <el-button type="primary" link size="default" @click="toggleStatus(row)">
                 {{ row.employment_status === '在职' ? '离职' : '在职' }}
               </el-button>
-              <el-popconfirm :title="'确定删除 ' + row.name + ' 的全部信息？'" @confirm="handleDelete(row)">
+              <el-popconfirm :title="'确定删除 ' + row.name + ' 的全部信息？'" confirm-button-text="删除" cancel-button-text="取消" confirm-button-type="danger" @confirm="handleDelete(row)">
                 <template #reference>
-                  <el-button type="danger" link size="small">删除</el-button>
+                  <el-button type="primary" link size="default">删除</el-button>
                 </template>
               </el-popconfirm>
             </template>
           </el-table-column>
         </el-table>
       </div>
-    </el-card>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
@@ -261,7 +255,7 @@ onUnmounted(() => {
           </el-radio-group>
         </el-form-item>
         <el-form-item label="月薪" prop="monthly_salary">
-          <el-input v-model="form.monthly_salary" placeholder="请输入月薪" style="width: 100%;">
+          <el-input v-model="form.monthly_salary" placeholder="请输入月薪" style="width: 100%;" @input="onSalaryChange">
             <template #prepend>¥</template>
           </el-input>
         </el-form-item>
@@ -276,5 +270,52 @@ onUnmounted(() => {
 
 <style scoped>
 .staff-page {
+  background: #fff;
+  border-radius: 4px;
+}
+.big-tabs {
+  display: flex;
+  border-bottom: 2px solid #e4e7ed;
+  flex-shrink: 0;
+}
+.big-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #909399;
+  background: #fafafa;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all 0.2s;
+  user-select: none;
+}
+.big-tab:hover { color: #606266; }
+.big-tab.active {
+  color: #409eff;
+  background: #fff;
+  border-bottom-color: #409eff;
+  font-weight: 600;
+}
+.tab-count {
+  font-size: 12px;
+  color: #c0c4cc;
+  margin-left: 2px;
+}
+.big-tab.active .tab-count {
+  color: #a0cfff;
+}
+.staff-top-bar {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid #ebeef5;
+}
+.staff-top-bar .el-button {
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  letter-spacing: 1px;
 }
 </style>

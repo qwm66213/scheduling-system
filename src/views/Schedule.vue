@@ -1,6 +1,5 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import { getAttendance, batchSaveAttendance, getStaff } from '../utils/api'
 
 const loading = ref(false)
@@ -48,12 +47,52 @@ const weekLabel = computed(() => {
   return `${dates[0].slice(5)} ~ ${dates[6].slice(5)}`
 })
 
+const todayInfo = computed(() => {
+  const today = new Date()
+  const weekNames = ['日', '一', '二', '三', '四', '五', '六']
+  return {
+    date: today.toISOString().slice(0, 10),
+    weekday: '星期' + weekNames[today.getDay()]
+  }
+})
+
+const weekInfo = computed(() => {
+  const today = new Date()
+  const jan1 = new Date(today.getFullYear(), 0, 1)
+  const weekNum = Math.ceil(((today - jan1) / 86400000 + jan1.getDay() + 1) / 7)
+  return {
+    range: weekLabel.value,
+    weekNum
+  }
+})
+
+const monthInfo = computed(() => {
+  const today = new Date()
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  return {
+    label: `${today.getFullYear()}年${String(today.getMonth() + 1).padStart(2, '0')}月`,
+    days: daysInMonth
+  }
+})
+
+const yearInfo = computed(() => {
+  const y = new Date().getFullYear()
+  const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  return {
+    year: y,
+    days: isLeap ? 366 : 365
+  }
+})
+
 const filteredStaff = computed(() => {
   const rank = activeTab.value === '后厨' ? backRank : frontRank
   const list = staffList.value.filter(r => r.business_line === activeTab.value && r.employment_status === '在职')
   list.sort((a, b) => (rank[a.position] ?? 999) - (rank[b.position] ?? 999))
   return list
 })
+
+const backStaffCount = computed(() => staffList.value.filter(r => r.business_line === '后厨' && r.employment_status === '在职').length)
+const frontStaffCount = computed(() => staffList.value.filter(r => r.business_line === '前厅' && r.employment_status === '在职').length)
 
 // 14个时段列
 const dayColumns = computed(() => {
@@ -128,16 +167,30 @@ function onCellClick(empId, date, period, event) {
   dropdownVisible.value = true
 }
 
-function selectStatus(status) {
+async function selectStatus(status) {
   const t = dropdownTarget.value
   updateCell(t.empId, t.date, t.period, status)
   dropdownVisible.value = false
+  await batchSaveAttendance([{
+    employee_id: t.empId,
+    date: t.date,
+    period: t.period,
+    status,
+    secondment_store: ''
+  }])
 }
 
-function selectStore(store) {
+async function selectStore(store) {
   const t = dropdownTarget.value
   updateCell(t.empId, t.date, t.period, 'second', store)
   dropdownVisible.value = false
+  await batchSaveAttendance([{
+    employee_id: t.empId,
+    date: t.date,
+    period: t.period,
+    status: 'second',
+    secondment_store: store
+  }])
 }
 
 function closeDropdown() {
@@ -162,40 +215,6 @@ async function loadAttendance() {
     map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
   }
   attendanceMap.value = map
-}
-
-async function handleSave() {
-  loading.value = true
-  try {
-    const dates = weekDates.value
-    const staff = filteredStaff.value
-    const records = []
-    for (const s of staff) {
-      for (const d of dates) {
-        for (const p of ['am', 'pm']) {
-          const key = getCellKey(s.id, d, p)
-          const cell = attendanceMap.value[key]
-          if (cell && cell.status) {
-            records.push({
-              employee_id: s.id,
-              date: d,
-              period: p,
-              status: cell.status,
-              secondment_store: cell.secondment_store || ''
-            })
-          }
-        }
-      }
-    }
-    if (records.length === 0) {
-      ElMessage.warning('没有需要保存的考勤数据')
-      return
-    }
-    await batchSaveAttendance(records)
-    ElMessage.success('保存成功')
-  } finally {
-    loading.value = false
-  }
 }
 
 onMounted(async () => {
@@ -225,20 +244,30 @@ watch(weekOffset, async () => {
 
 <template>
   <div class="schedule-page">
-    <div class="top-bar">
-      <div class="top-left">
-        <div class="week-nav">
-          <el-button text size="small" @click="prevWeek"><el-icon><ArrowLeft /></el-icon></el-button>
-          <span class="week-label">{{ weekLabel }}</span>
-          <el-button text size="small" @click="nextWeek"><el-icon><ArrowRight /></el-icon></el-button>
+    <div class="time-cards">
+      <div class="time-card">
+        <div class="time-card-label">今天是</div>
+        <div class="time-card-value">{{ todayInfo.date }}</div>
+        <div class="time-card-sub">{{ todayInfo.weekday }}</div>
+      </div>
+      <div class="time-card active" @click="thisWeek">
+        <div class="time-card-label">本周</div>
+        <div class="time-card-value">
+          <el-button text size="small" class="card-arrow" @click.stop="prevWeek"><el-icon><ArrowLeft /></el-icon></el-button>
+          {{ weekInfo.range }}
+          <el-button text size="small" class="card-arrow" @click.stop="nextWeek"><el-icon><ArrowRight /></el-icon></el-button>
         </div>
-        <el-button text size="small" class="today-btn" @click="thisWeek">回到本周</el-button>
+        <div class="time-card-sub">第 {{ weekInfo.weekNum }} 周</div>
       </div>
-      <div class="seg-group">
-        <div class="seg-btn" :class="{ active: activeTab === '后厨' }" @click="activeTab = '后厨'">后厨</div>
-        <div class="seg-btn" :class="{ active: activeTab === '前厅' }" @click="activeTab = '前厅'">前厅</div>
+    </div>
+
+    <div class="big-tabs">
+      <div class="big-tab" :class="{ active: activeTab === '后厨' }" @click="activeTab = '后厨'">
+        后厨 <span class="tab-count">{{ backStaffCount }}</span>
       </div>
-      <el-button type="primary" size="small" @click="handleSave" class="save-btn">保存</el-button>
+      <div class="big-tab" :class="{ active: activeTab === '前厅' }" @click="activeTab = '前厅'">
+        前厅 <span class="tab-count">{{ frontStaffCount }}</span>
+      </div>
     </div>
 
     <div class="grid-wrap">
@@ -314,59 +343,88 @@ watch(weekOffset, async () => {
   background: #fff;
   border-radius: 4px;
 }
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 16px;
-  border-bottom: 1px solid #ebeef5;
+.time-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
   flex-shrink: 0;
 }
-.top-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.week-nav {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.week-label {
-  font-size: 14px;
-  color: #303133;
-  font-weight: 600;
-  min-width: 110px;
-  text-align: center;
-}
-.today-btn {
-  color: #409eff;
-  font-size: 12px;
-}
-.seg-group {
-  display: flex;
+.time-card {
   background: #f5f7fa;
-  border-radius: 6px;
-  padding: 2px;
-  gap: 2px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  text-align: center;
+  transition: all 0.2s;
 }
-.seg-btn {
-  padding: 5px 20px;
-  border-radius: 4px;
+.time-card.active {
+  background: #ecf5ff;
+  border: 1px solid #b3d8ff;
   cursor: pointer;
-  font-size: 13px;
+}
+.time-card-label {
+  font-size: 11px;
+  color: #909399;
+  margin-bottom: 4px;
+}
+.time-card-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 24px;
+}
+.time-card-sub {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
+}
+.time-card.active .time-card-label {
+  color: #409eff;
+}
+.time-card.active .time-card-value {
+  color: #409eff;
+}
+.card-arrow {
+  padding: 2px;
+  color: #409eff !important;
+}
+.big-tabs {
+  display: flex;
+  border-bottom: 2px solid #e4e7ed;
+  flex-shrink: 0;
+}
+.big-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 15px;
   font-weight: 500;
-  color: #606266;
+  color: #909399;
+  background: #fafafa;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
   transition: all 0.2s;
   user-select: none;
 }
-.seg-btn:hover { color: #303133; }
-.seg-btn.active {
-  background: #fff;
+.big-tab:hover { color: #606266; }
+.big-tab.active {
   color: #409eff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  background: #fff;
+  border-bottom-color: #409eff;
+  font-weight: 600;
 }
-.save-btn { font-weight: 500; }
+.tab-count {
+  font-size: 12px;
+  color: #c0c4cc;
+  margin-left: 2px;
+}
+.big-tab.active .tab-count {
+  color: #a0cfff;
+}
 .grid-wrap {
   flex: 1;
   overflow: auto;

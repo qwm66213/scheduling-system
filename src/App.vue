@@ -6,7 +6,7 @@ const route = useRoute()
 const isCollapse = ref(false)
 
 const menuItems = [
-  { path: '/', icon: 'DataAnalysis', title: '仪表盘' },
+  { path: '/', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
   { path: '/schedule', icon: 'Calendar', title: '排班表' },
   { path: '/attendance', icon: 'Checked', title: '考勤记录' },
@@ -42,7 +42,7 @@ const menuItems = [
         <el-icon :size="20" style="cursor: pointer;" @click="isCollapse = !isCollapse">
           <component :is="isCollapse ? 'Expand' : 'Fold'" />
         </el-icon>
-        <span style="font-size: 14px; color: #666;">餐饮排班管理系统</span>
+        <span style="font-size: 14px; color: #666;">{{ route.meta.title || '餐饮排班管理系统' }}</span>
       </el-header>
 
       <el-main class="main-area">

@@ -6,7 +6,6 @@ const { initDB } = require('./db');
 const revenueRoutes = require('./routes/revenue');
 const staffRoutes = require('./routes/staff');
 const scheduleRoutes = require('./routes/schedule');
-const configRoutes = require('./routes/config');
 const dashboardRoutes = require('./routes/dashboard');
 
 const app = express();
@@ -18,7 +17,6 @@ app.use(express.json());
 app.use('/api/revenue', revenueRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/schedule', scheduleRoutes);
-app.use('/api/config', configRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 
 // Serve frontend static files
