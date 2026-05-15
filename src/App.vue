@@ -8,9 +8,12 @@ const isCollapse = ref(false)
 const menuItems = [
   { path: '/', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
-  { path: '/schedule', icon: 'Calendar', title: '排班表' },
+  { path: '/schedule', icon: 'Calendar', title: '预排班' },
   { path: '/attendance', icon: 'Checked', title: '考勤记录' },
   { path: '/staff', icon: 'User', title: '员工管理' },
+  { path: '/settings', icon: 'Setting', title: '设置' },
+  { path: '/daily-summary', icon: 'DataLine', title: '总数据表' },
+  { path: '/personal-summary', icon: 'UserFilled', title: '个人数据表' },
 ]
 </script>
 
@@ -18,8 +21,8 @@ const menuItems = [
   <el-container style="height: 100vh">
     <el-aside :width="isCollapse ? '64px' : '200px'" style="transition: width 0.3s; background: #001529;">
       <div style="height: 60px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: bold; white-space: nowrap; overflow: hidden;">
-        <span v-if="!isCollapse">排班管理系统</span>
-        <span v-else>排</span>
+        <span v-if="!isCollapse">930管理系统</span>
+        <span v-else>9</span>
       </div>
       <el-menu
         :default-active="route.path"
@@ -42,7 +45,7 @@ const menuItems = [
         <el-icon :size="20" style="cursor: pointer;" @click="isCollapse = !isCollapse">
           <component :is="isCollapse ? 'Expand' : 'Fold'" />
         </el-icon>
-        <span style="font-size: 14px; color: #666;">{{ route.meta.title || '餐饮排班管理系统' }}</span>
+        <span style="font-size: 14px; color: #666;">{{ route.meta.title || '930管理系统' }}</span>
       </el-header>
 
       <el-main class="main-area">

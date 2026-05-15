@@ -197,8 +197,11 @@ function closeDropdown() {
   dropdownVisible.value = false
 }
 
+const isNextWeek = computed(() => weekOffset.value === 1)
+const isBeyondNextWeek = computed(() => weekOffset.value > 1)
+
 function prevWeek() { weekOffset.value-- }
-function nextWeek() { weekOffset.value++ }
+function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
 function thisWeek() { weekOffset.value = 0 }
 
 async function loadStaff() {
@@ -214,6 +217,22 @@ async function loadAttendance() {
     const key = getCellKey(r.employee_id, r.date, r.period)
     map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
   }
+
+  // 下一周：自动将所有在职员工出勤状态设为√
+  if (isNextWeek.value && Object.keys(map).length === 0) {
+    for (const emp of staffList.value) {
+      if (emp.employment_status !== '在职') continue
+      for (let i = 0; i < weekDates.value.length; i++) {
+        for (const period of ['am', 'pm']) {
+          const key = getCellKey(emp.id, weekDates.value[i], period)
+          if (!map[key]) {
+            map[key] = { employee_id: emp.id, date: weekDates.value[i], period, status: 'check', secondment_store: '' }
+          }
+        }
+      }
+    }
+  }
+
   attendanceMap.value = map
 }
 
@@ -253,9 +272,9 @@ watch(weekOffset, async () => {
       <div class="time-card active" @click="thisWeek">
         <div class="time-card-label">本周</div>
         <div class="time-card-value">
-          <el-button text size="small" class="card-arrow" @click.stop="prevWeek"><el-icon><ArrowLeft /></el-icon></el-button>
+          <el-button text class="card-arrow" @click.stop="prevWeek"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
           {{ weekInfo.range }}
-          <el-button text size="small" class="card-arrow" @click.stop="nextWeek"><el-icon><ArrowRight /></el-icon></el-button>
+          <el-button text class="card-arrow" :disabled="isNextWeek" @click.stop="nextWeek"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
         </div>
         <div class="time-card-sub">第 {{ weekInfo.weekNum }} 周</div>
       </div>
@@ -275,6 +294,8 @@ watch(weekOffset, async () => {
         <!-- 表头第一行 -->
         <div class="g-cell g-header g-name" style="grid-row:1;grid-column:1;">姓名</div>
         <div class="g-cell g-header g-pos" style="grid-row:1;grid-column:2;">岗位</div>
+        <!-- 姓名和岗位下方合并为一个单元格填写出勤 -->
+        <div class="g-cell g-header g-sub" style="grid-row:2;grid-column:1 / span 2;">出勤</div>
         <div v-for="(h, idx) in dayHeaders" :key="h.date"
           class="g-cell g-header g-day"
           :style="{ gridRow: 1, gridColumn: (3 + idx * 2) + ' / span 2' }">
@@ -389,7 +410,7 @@ watch(weekOffset, async () => {
   color: #409eff;
 }
 .card-arrow {
-  padding: 2px;
+  padding: 4px 8px;
   color: #409eff !important;
 }
 .big-tabs {
@@ -432,6 +453,7 @@ watch(weekOffset, async () => {
 .grid-container {
   display: grid;
   min-width: fit-content;
+  grid-auto-rows: minmax(34px, auto);
 }
 .g-cell {
   border: 1px solid #ebeef5;
@@ -443,11 +465,12 @@ watch(weekOffset, async () => {
 }
 .g-header {
   background: #fafafa;
-  font-weight: 500;
-  color: #606266;
+  font-weight: 700;
+  color: #303133;
   position: sticky;
   top: 0;
   z-index: 2;
+  min-height: 34px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -457,6 +480,7 @@ watch(weekOffset, async () => {
   text-align: left;
   padding-left: 10px;
   font-size: 13px;
+  min-height: 34px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -464,7 +488,8 @@ watch(weekOffset, async () => {
   align-items: center;
 }
 .g-pos {
-  font-size: 12px;
+  font-size: 13px;
+  min-height: 34px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -475,17 +500,23 @@ watch(weekOffset, async () => {
 .g-day {
   font-size: 13px;
 }
+.g-sub {
+  font-size: 11px;
+  font-weight: 700;
+  color: #303133;
+}
 .g-period {
   font-size: 11px;
-  color: #909399;
-  font-weight: 400;
+  color: #303133;
+  font-weight: 700;
 }
-.day-header { font-size: 13px; font-weight: 500; line-height: 1.4; }
+.day-header { font-size: 13px; font-weight: 700; line-height: 1.4; }
 .day-date { font-size: 11px; color: #909399; line-height: 1.3; }
 .g-data {
   cursor: pointer;
   user-select: none;
   padding: 5px 0;
+  min-height: 34px;
   transition: background 0.15s;
   display: flex;
   align-items: center;

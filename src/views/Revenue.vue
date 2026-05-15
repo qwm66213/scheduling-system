@@ -302,9 +302,9 @@ onMounted(() => {
       <div class="time-card active" @click="thisMonth">
         <div class="time-card-label">本月</div>
         <div class="time-card-value">
-          <el-button text size="small" class="card-arrow" @click.stop="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
+          <el-button text class="card-arrow" @click.stop="prevMonth"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
           {{ monthInfo.label }}
-          <el-button text size="small" class="card-arrow" @click.stop="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+          <el-button text class="card-arrow" @click.stop="nextMonth"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
         </div>
         <div class="time-card-sub">共 {{ monthInfo.days }} 天</div>
       </div>
@@ -531,7 +531,7 @@ onMounted(() => {
 .time-card.active .time-card-label { color: #409eff; }
 .time-card.active .time-card-value { color: #409eff; }
 .card-arrow {
-  padding: 2px;
+  padding: 4px 8px;
   color: #409eff !important;
 }
 

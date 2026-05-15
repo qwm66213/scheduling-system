@@ -27,4 +27,16 @@ export const getAttendanceSummary = (params) => api.get('/schedule/summary', { p
 // Dashboard
 export const getDashboardSummary = (params) => api.get('/dashboard/summary', { params }).then(r => r.data)
 
+// Settings
+export const getSettings = () => api.get('/settings').then(r => r.data)
+export const saveSettings = (data) => api.put('/settings', data).then(r => r.data)
+
+// Daily Summary
+export const getDailySummary = (params) => api.get('/daily-summary', { params }).then(r => r.data)
+export const generateDailySummary = (date) => api.post('/daily-summary/generate', { date }).then(r => r.data)
+
+// Personal Summary
+export const getPersonalSummary = (params) => api.get('/personal-summary', { params }).then(r => r.data)
+export const generatePersonalSummary = (date) => api.post('/personal-summary/generate', { date }).then(r => r.data)
+
 export default api
