@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { getSettings, saveSettings } from '../utils/api'
 import { ElMessage } from 'element-plus'
 
@@ -65,13 +65,13 @@ onMounted(() => {
   background: #fff;
   border-radius: 4px;
   min-height: calc(100vh - 60px - 32px);
+  padding: 20px;
 }
 .settings-card {
-  max-width: 500px;
-  margin: 40px auto 0;
   border: 1px solid #ebeef5;
   border-radius: 8px;
   overflow: hidden;
+  max-width: 500px;
 }
 .settings-title {
   font-size: 15px;

@@ -11,6 +11,7 @@ const menuItems = [
   { path: '/schedule', icon: 'Calendar', title: '预排班' },
   { path: '/attendance', icon: 'Checked', title: '考勤记录' },
   { path: '/staff', icon: 'User', title: '员工管理' },
+  { path: '/accounts', icon: 'UserFilled', title: '账号管理' },
   { path: '/settings', icon: 'Setting', title: '设置' },
   { path: '/daily-summary', icon: 'DataLine', title: '总数据表' },
   { path: '/personal-summary', icon: 'UserFilled', title: '个人数据表' },

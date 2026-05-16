@@ -10,6 +10,7 @@ const dashboardRoutes = require('./routes/dashboard');
 const settingsRoutes = require('./routes/settings');
 const dailySummaryRoutes = require('./routes/dailySummary');
 const personalSummaryRoutes = require('./routes/personalSummary');
+const authRoutes = require('./routes/auth');
 
 const app = express();
 const PORT = 3001;
@@ -24,9 +25,12 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/daily-summary', dailySummaryRoutes);
 app.use('/api/personal-summary', personalSummaryRoutes);
+app.use('/api/auth', authRoutes);
 
 // Serve frontend static files
 const distPath = path.join(__dirname, '..', 'dist');
+const publicPath = path.join(__dirname, '..', 'public');
+app.use(express.static(publicPath));
 app.use(express.static(distPath));
 app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(distPath, 'index.html'));
