@@ -1,9 +1,12 @@
 <script setup>
-import { ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
 const isCollapse = ref(false)
+
+const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
 
 const menuItems = [
   { path: '/', icon: 'DataAnalysis', title: '数据看板' },
@@ -16,6 +19,11 @@ const menuItems = [
   { path: '/daily-summary', icon: 'DataLine', title: '总数据表' },
   { path: '/personal-summary', icon: 'UserFilled', title: '个人数据表' },
 ]
+
+function handleLogout() {
+  localStorage.removeItem('user')
+  window.location.href = '/login.html'
+}
 </script>
 
 <template>
@@ -43,10 +51,16 @@ const menuItems = [
 
     <el-container style="height: 100%; flex-direction: column;">
       <el-header style="background: #fff; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 4px rgba(0,0,0,0.08); padding: 0 20px; height: 60px; flex-shrink: 0;">
-        <el-icon :size="20" style="cursor: pointer;" @click="isCollapse = !isCollapse">
-          <component :is="isCollapse ? 'Expand' : 'Fold'" />
-        </el-icon>
-        <span style="font-size: 14px; color: #666;">{{ route.meta.title || '930管理系统' }}</span>
+        <div style="display: flex; align-items: center; gap: 16px;">
+          <el-icon :size="20" style="cursor: pointer;" @click="isCollapse = !isCollapse">
+            <component :is="isCollapse ? 'Expand' : 'Fold'" />
+          </el-icon>
+          <span style="font-size: 14px; color: #666;">{{ route.meta.title || '930管理系统' }}</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 14px; color: #333;">{{ user.username }}</span>
+          <el-button type="primary" size="small" @click="handleLogout">退出</el-button>
+        </div>
       </el-header>
 
       <el-main class="main-area">

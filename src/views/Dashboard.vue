@@ -2,6 +2,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { getDashboardSummary } from '../utils/api'
 
+const STORES = ['金', '凉', '国', '长', '阳', '殷', '宜', '中', '灵', '柳']
+
+const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
+const isSuperAdmin = computed(() => user.value.role === 'admin')
+const selectedStore = ref(isSuperAdmin.value ? '' : user.value.store_id)
+
 const loading = ref(true)
 const currentMonth = ref('')
 const data = ref(null)
@@ -63,7 +69,9 @@ function thisMonth() {
 async function loadData() {
   loading.value = true
   try {
-    data.value = await getDashboardSummary({ month: currentMonth.value })
+    const params = { month: currentMonth.value }
+    if (selectedStore.value) params.store_id = selectedStore.value
+    data.value = await getDashboardSummary(params)
   } finally {
     loading.value = false
   }
@@ -84,11 +92,16 @@ onMounted(() => {
   loadData()
 })
 
-watch(currentMonth, loadData)
+watch([currentMonth, selectedStore], loadData)
 </script>
 
 <template>
   <div v-loading="loading" class="dashboard-page">
+    <div class="filter-row" v-if="isSuperAdmin">
+      <el-select v-model="selectedStore" placeholder="选择门店" clearable style="width: 120px;">
+        <el-option v-for="(store, index) in STORES" :key="index" :label="store" :value="index + 1" />
+      </el-select>
+    </div>
     <div class="time-cards">
       <div class="time-card">
         <div class="time-card-label">今天是</div>
@@ -400,6 +413,9 @@ watch(currentMonth, loadData)
 <style scoped>
 .dashboard-page {
   padding: 0;
+}
+.filter-row {
+  margin-bottom: 12px;
 }
 .time-cards {
   display: grid;
