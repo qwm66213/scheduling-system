@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mysql = require('mysql2/promise');
+const authMiddleware = require('../middleware/auth');
 
 const pool = mysql.createPool({
   host: 'localhost',
@@ -12,11 +13,14 @@ const pool = mysql.createPool({
   connectionLimit: 10
 });
 
+router.use(authMiddleware);
+
 router.get('/', async (req, res) => {
   try {
     const { position, employment_status } = req.query;
     let sql = 'SELECT * FROM employee_profile WHERE 1=1';
     const params = [];
+    if (req.storeId) { sql += ' AND store_id = ?'; params.push(req.storeId); }
     if (position) { sql += ' AND position = ?'; params.push(position); }
     if (employment_status) { sql += ' AND employment_status = ?'; params.push(employment_status); }
     sql += ' ORDER BY id';

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mysql = require('mysql2/promise');
+const authMiddleware = require('../middleware/auth');
 
 const pool = mysql.createPool({
   host: 'localhost',
@@ -12,6 +13,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   timezone: '+08:00'
 });
+
+router.use(authMiddleware);
 
 function formatDate(d) {
   if (!d) return d
@@ -42,6 +45,7 @@ router.get('/', async (req, res) => {
     const { start_date, end_date, version } = req.query;
     let sql = `SELECT ${SELECT_FIELDS} FROM revenue_detail WHERE 1=1`;
     const params = [];
+    if (req.storeId) { sql += ' AND store_id = ?'; params.push(req.storeId); }
     if (start_date) { sql += ' AND revenue_date >= ?'; params.push(start_date); }
     if (end_date) { sql += ' AND revenue_date <= ?'; params.push(end_date); }
     if (version) { sql += ' AND version = ?'; params.push(version); }

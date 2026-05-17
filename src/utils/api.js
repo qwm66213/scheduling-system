@@ -5,6 +5,28 @@ const api = axios.create({
   timeout: 10000
 })
 
+// 请求拦截器：添加用户信息
+api.interceptors.request.use(config => {
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    const user = JSON.parse(userStr)
+    config.headers['x-user-id'] = user.id
+  }
+  return config
+})
+
+// 响应拦截器：处理未登录
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('user')
+      window.location.href = '/login.html'
+    }
+    return Promise.reject(error)
+  }
+)
+
 // Revenue
 export const getRevenue = (params) => api.get('/revenue', { params }).then(r => r.data)
 export const saveRevenue = (data) => api.post('/revenue', data).then(r => r.data)

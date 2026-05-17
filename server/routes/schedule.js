@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mysql = require('mysql2/promise');
+const authMiddleware = require('../middleware/auth');
 
 const pool = mysql.createPool({
   host: 'localhost',
@@ -12,6 +13,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   timezone: '+08:00'
 });
+
+router.use(authMiddleware);
 
 function formatDate(d) {
   if (!d) return d;
@@ -33,12 +36,15 @@ router.get('/', async (req, res) => {
       return res.status(400).json({ error: 'start_date and end_date required' });
     }
 
-    const [rows] = await pool.execute(
-      'SELECT a.id, a.employee_id, a.attendance_date, a.period, a.status, a.secondment_store, e.name, e.position, e.business_line, e.employment_type, e.secondment_status ' +
-      'FROM attendance a JOIN employee_profile e ON a.employee_id = e.id ' +
-      'WHERE a.attendance_date >= ? AND a.attendance_date <= ? ORDER BY a.attendance_date, a.period, e.id',
-      [start_date, end_date]
-    );
+    let sql = 'SELECT a.id, a.employee_id, a.attendance_date, a.period, a.status, a.secondment_store, e.name, e.position, e.business_line, e.employment_type, e.secondment_status ' +
+      'FROM attendance a JOIN employee_profile e ON a.employee_id = e.id WHERE a.attendance_date >= ? AND a.attendance_date <= ?';
+    const params = [start_date, end_date];
+    if (req.storeId) {
+      sql += ' AND e.store_id = ?';
+      params.push(req.storeId);
+    }
+    sql += ' ORDER BY a.attendance_date, a.period, e.id';
+    const [rows] = await pool.execute(sql, params);
 
     const result = rows.map(r => ({
       id: r.id,

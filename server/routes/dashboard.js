@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const mysql = require('mysql2/promise');
 const { getDB, save } = require('../db');
+const authMiddleware = require('../middleware/auth');
 
 const pool = mysql.createPool({
   host: 'localhost',
@@ -13,6 +14,8 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   timezone: '+08:00'
 });
+
+router.use(authMiddleware);
 
 // Helper: Date -> local YYYY-MM-DD (avoid toISOString UTC shift)
 function toDateStr(d) {
@@ -47,23 +50,26 @@ router.get('/summary', async (req, res) => {
     );
     const endDate = nextMonth[0].nm;
 
+    const storeFilter = req.storeId ? ' AND store_id = ?' : '';
+    const storeParam = req.storeId ? [req.storeId] : [];
+
     // 1. Total revenue (actual version) & days with data
     const [revenueRows] = await pool.execute(
-      'SELECT SUM(total_revenue) AS total FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ?',
-      [startDate, endDate, 'actual']
+      `SELECT SUM(total_revenue) AS total FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ?${storeFilter}`,
+      [startDate, endDate, 'actual', ...storeParam]
     );
     const totalRevenue = Number(revenueRows[0].total) || 0;
 
     const [dayRows] = await pool.execute(
-      'SELECT COUNT(DISTINCT revenue_date) AS days FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ? AND total_revenue > 0',
-      [startDate, endDate, 'actual']
+      `SELECT COUNT(DISTINCT revenue_date) AS days FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ? AND total_revenue > 0${storeFilter}`,
+      [startDate, endDate, 'actual', ...storeParam]
     );
     const dataDays = dayRows[0].days || 0;
 
     // 1.1 Daily revenue map (for front salary calculation)
     const [dailyRevenueRows] = await pool.execute(
-      'SELECT revenue_date, SUM(total_revenue) AS day_total FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ? GROUP BY revenue_date',
-      [startDate, endDate, 'actual']
+      `SELECT revenue_date, SUM(total_revenue) AS day_total FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ?${storeFilter} GROUP BY revenue_date`,
+      [startDate, endDate, 'actual', ...storeParam]
     );
     const dailyRevenueMap = {};
     for (const r of dailyRevenueRows) {
@@ -73,8 +79,8 @@ router.get('/summary', async (req, res) => {
 
     // 1.2 Daily forecast revenue map (for revenue achieve rate)
     const [dailyForecastRows] = await pool.execute(
-      'SELECT revenue_date, SUM(total_revenue) AS day_total FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ? GROUP BY revenue_date',
-      [startDate, endDate, 'forecast']
+      `SELECT revenue_date, SUM(total_revenue) AS day_total FROM revenue_detail WHERE revenue_date >= ? AND revenue_date < ? AND version = ?${storeFilter} GROUP BY revenue_date`,
+      [startDate, endDate, 'forecast', ...storeParam]
     );
     const dailyForecastMap = {};
     for (const r of dailyForecastRows) {
@@ -83,20 +89,19 @@ router.get('/summary', async (req, res) => {
     }
 
     // 2. Staff count & salary by business_line
-    const [employees] = await pool.execute(
-      'SELECT id, business_line, employment_type, monthly_salary, daily_salary FROM employee_profile WHERE employment_status = "在职"'
-    );
+    let empSql = 'SELECT id, business_line, employment_type, monthly_salary, daily_salary FROM employee_profile WHERE employment_status = "在职"';
+    const empParams = [];
+    if (req.storeId) { empSql += ' AND store_id = ?'; empParams.push(req.storeId); }
+    const [employees] = await pool.execute(empSql, empParams);
 
     const frontEmployees = employees.filter(e => e.business_line === '前厅');
     const backEmployees = employees.filter(e => e.business_line !== '前厅');
 
     // 3. Attendance salary from summary (for back staff only)
-    const [attRows] = await pool.execute(
-      'SELECT a.employee_id, a.attendance_date, a.period, a.status ' +
-      'FROM attendance a ' +
-      'WHERE a.attendance_date >= ? AND a.attendance_date < ? AND a.status != ""',
-      [startDate, endDate]
-    );
+    let attSql = 'SELECT a.employee_id, a.attendance_date, a.period, a.status FROM attendance a WHERE a.attendance_date >= ? AND a.attendance_date < ? AND a.status != ""';
+    const attParams = [startDate, endDate];
+    if (req.storeId) { attSql += ' AND a.employee_id IN (SELECT id FROM employee_profile WHERE store_id = ?)'; attParams.push(req.storeId); }
+    const [attRows] = await pool.execute(attSql, attParams);
 
     const attMap = {};
     for (const r of attRows) {

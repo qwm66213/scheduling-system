@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mysql = require('mysql2/promise');
+const authMiddleware = require('../middleware/auth');
 
 const pool = mysql.createPool({
   host: 'localhost',
@@ -14,6 +15,8 @@ const pool = mysql.createPool({
   dateStrings: true
 });
 
+router.use(authMiddleware);
+
 // GET /api/personal-summary?start_date=&end_date=
 router.get('/', async (req, res) => {
   try {
@@ -21,12 +24,12 @@ router.get('/', async (req, res) => {
     if (!start_date || !end_date) {
       return res.status(400).json({ error: 'start_date and end_date required' });
     }
-    const [rows] = await pool.execute(
-      'SELECT ps.id, ps.summary_date, ps.employee_name, ps.front_check_count, ps.back_check_count, ps.bonus, e.business_line, e.position ' +
-      'FROM personal_summary ps LEFT JOIN employee_profile e ON ps.employee_name = e.name ' +
-      'WHERE ps.summary_date >= ? AND ps.summary_date <= ? ORDER BY ps.summary_date, e.business_line, e.id',
-      [start_date, end_date]
-    );
+    let sql = 'SELECT ps.id, ps.summary_date, ps.employee_name, ps.front_check_count, ps.back_check_count, ps.bonus, e.business_line, e.position ' +
+      'FROM personal_summary ps LEFT JOIN employee_profile e ON ps.employee_name = e.name WHERE ps.summary_date >= ? AND ps.summary_date <= ?';
+    const params = [start_date, end_date];
+    if (req.storeId) { sql += ' AND ps.store_id = ?'; params.push(req.storeId); }
+    sql += ' ORDER BY ps.summary_date, e.business_line, e.id';
+    const [rows] = await pool.execute(sql, params);
     const result = rows.map(r => ({
       id: r.id,
       date: r.summary_date instanceof Date ? r.summary_date.toISOString().slice(0, 10) : String(r.summary_date).slice(0, 10),
