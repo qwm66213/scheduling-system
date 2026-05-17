@@ -22,7 +22,7 @@ async function loadUsers() {
 
 function openAdd() {
   editId.value = null
-  form.value = { username: '', password: '', role: 'manager', store_id: '' }
+  form.value = { username: '', password: '', role: 'manager', store_id: null }
   dialogVisible.value = true
 }
 
@@ -33,7 +33,7 @@ function openEdit(row) {
 }
 
 async function handleSaveUser() {
-  if (!form.value.username || (!editId.value && !form.value.password)) {
+  if (!form.value.username || (!editId.value && !form.value.password) || !form.value.store_id) {
     ElMessage.warning('请填写必填项')
     return
   }

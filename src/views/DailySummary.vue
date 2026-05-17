@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { getDailySummary } from '../utils/api'
+import { useStore } from '../composables/useStore'
+
+const { selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const currentYear = ref(new Date().getFullYear())
@@ -70,10 +73,13 @@ async function loadData() {
   loading.value = true
   try {
     const m = String(currentMonth.value).padStart(2, '0')
-    tableData.value = await getDailySummary({
+    const params = {
       start_date: `${currentYear.value}-${m}-01`,
       end_date: `${currentYear.value}-${m}-31`
-    })
+    }
+    const storeId = getStoreId()
+    if (storeId) params.store_id = storeId
+    tableData.value = await getDailySummary(params)
     currentPage.value = 1
   } finally {
     loading.value = false
@@ -82,7 +88,7 @@ async function loadData() {
 
 onMounted(() => { loadData() })
 
-watch([currentYear, currentMonth], () => { loadData() })
+watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
 </script>
 
 <template>

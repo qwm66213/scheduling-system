@@ -1,29 +1,45 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useStore } from './composables/useStore'
 
 const route = useRoute()
 const router = useRouter()
 const isCollapse = ref(false)
 
 const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
+const { STORES, selectedStoreId, isSuperAdmin, initStore, setStoreId, getStoreName } = useStore()
 
-const menuItems = [
+const allMenuItems = [
   { path: '/', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
   { path: '/schedule', icon: 'Calendar', title: '预排班' },
   { path: '/attendance', icon: 'Checked', title: '考勤记录' },
   { path: '/staff', icon: 'User', title: '员工管理' },
-  { path: '/accounts', icon: 'UserFilled', title: '账号管理' },
+  { path: '/accounts', icon: 'UserFilled', title: '账号管理', adminOnly: true },
   { path: '/settings', icon: 'Setting', title: '设置' },
   { path: '/daily-summary', icon: 'DataLine', title: '总数据表' },
   { path: '/personal-summary', icon: 'UserFilled', title: '个人数据表' },
 ]
 
+const menuItems = computed(() => {
+  if (isSuperAdmin.value) return allMenuItems
+  return allMenuItems.filter(item => !item.adminOnly)
+})
+
 function handleLogout() {
   localStorage.removeItem('user')
+  localStorage.removeItem('selectedStoreId')
   window.location.href = '/login.html'
 }
+
+function handleStoreChange(val) {
+  setStoreId(val)
+}
+
+onMounted(() => {
+  initStore()
+})
 </script>
 
 <template>
@@ -57,9 +73,17 @@ function handleLogout() {
           </el-icon>
           <span style="font-size: 14px; color: #666;">{{ route.meta.title || '930管理系统' }}</span>
         </div>
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <span style="font-size: 14px; color: #333;">{{ user.username }}</span>
-          <el-button type="primary" size="small" @click="handleLogout">退出</el-button>
+        <div style="display: flex; align-items: center; gap: 20px;">
+          <template v-if="isSuperAdmin">
+            <div style="display: flex; align-items: center; gap: 10px; background: #ecf5ff; padding: 10px 20px; border-radius: 8px; border: 1px solid #b3d8ff;">
+              <span style="font-size: 16px; color: #409eff;">当前门店：</span>
+              <b style="font-size: 18px; color: #409eff;">{{ getStoreName(selectedStoreId) }}</b>
+              <el-select v-model="selectedStoreId" placeholder="选择门店" style="width: 100px;" @change="handleStoreChange">
+                <el-option v-for="(store, index) in STORES" :key="index" :label="store" :value="index + 1" />
+              </el-select>
+            </div>
+          </template>
+          <el-button type="primary" @click="handleLogout" style="font-weight: 500;">退出</el-button>
         </div>
       </el-header>
 

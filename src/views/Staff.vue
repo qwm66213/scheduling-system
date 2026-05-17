@@ -1,6 +1,9 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { getStaff, addStaff, updateStaff, deleteStaff } from '../utils/api'
+import { useStore } from '../composables/useStore'
+
+const { selectedStoreId, getStoreId } = useStore()
 
 const tableData = ref([])
 const loading = ref(false)
@@ -82,7 +85,10 @@ function calcTableHeight() {
 async function loadData() {
   loading.value = true
   try {
-    tableData.value = await getStaff({})
+    const params = {}
+    const storeId = getStoreId()
+    if (storeId) params.store_id = storeId
+    tableData.value = await getStaff(params)
   } finally {
     loading.value = false
     calcTableHeight()
@@ -167,6 +173,10 @@ function onResize() {
 onMounted(() => {
   loadData()
   window.addEventListener('resize', onResize)
+})
+
+watch(selectedStoreId, () => {
+  loadData()
 })
 
 onUnmounted(() => {

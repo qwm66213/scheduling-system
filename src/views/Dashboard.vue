@@ -1,12 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { getDashboardSummary } from '../utils/api'
+import { useStore } from '../composables/useStore'
 
-const STORES = ['金', '凉', '国', '长', '阳', '殷', '宜', '中', '灵', '柳']
-
-const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
-const isSuperAdmin = computed(() => user.value.role === 'admin')
-const selectedStore = ref(isSuperAdmin.value ? '' : user.value.store_id)
+const { selectedStoreId, getStoreId, isSuperAdmin } = useStore()
 
 const loading = ref(true)
 const currentMonth = ref('')
@@ -70,7 +67,8 @@ async function loadData() {
   loading.value = true
   try {
     const params = { month: currentMonth.value }
-    if (selectedStore.value) params.store_id = selectedStore.value
+    const storeId = getStoreId()
+    if (storeId) params.store_id = storeId
     data.value = await getDashboardSummary(params)
   } finally {
     loading.value = false
@@ -92,16 +90,11 @@ onMounted(() => {
   loadData()
 })
 
-watch([currentMonth, selectedStore], loadData)
+watch([currentMonth, selectedStoreId], loadData)
 </script>
 
 <template>
   <div v-loading="loading" class="dashboard-page">
-    <div class="filter-row" v-if="isSuperAdmin">
-      <el-select v-model="selectedStore" placeholder="选择门店" clearable style="width: 120px;">
-        <el-option v-for="(store, index) in STORES" :key="index" :label="store" :value="index + 1" />
-      </el-select>
-    </div>
     <div class="time-cards">
       <div class="time-card">
         <div class="time-card-label">今天是</div>

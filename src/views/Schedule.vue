@@ -1,6 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getAttendance, batchSaveAttendance, getStaff } from '../utils/api'
+import { useStore } from '../composables/useStore'
+
+const { selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const activeTab = ref('后厨')
@@ -205,13 +208,19 @@ function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
 function thisWeek() { weekOffset.value = 0 }
 
 async function loadStaff() {
-  const data = await getStaff({})
+  const params = {}
+  const storeId = getStoreId()
+  if (storeId) params.store_id = storeId
+  const data = await getStaff(params)
   staffList.value = data
 }
 
 async function loadAttendance() {
   const dates = weekDates.value
-  const data = await getAttendance({ start_date: dates[0], end_date: dates[6] })
+  const params = { start_date: dates[0], end_date: dates[6] }
+  const storeId = getStoreId()
+  if (storeId) params.store_id = storeId
+  const data = await getAttendance(params)
   const map = {}
   for (const r of data) {
     const key = getCellKey(r.employee_id, r.date, r.period)
@@ -254,6 +263,16 @@ onUnmounted(() => {
 watch(weekOffset, async () => {
   loading.value = true
   try {
+    await loadAttendance()
+  } finally {
+    loading.value = false
+  }
+})
+
+watch(selectedStoreId, async () => {
+  loading.value = true
+  try {
+    await loadStaff()
     await loadAttendance()
   } finally {
     loading.value = false

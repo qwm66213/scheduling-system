@@ -1,6 +1,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { getRevenue, saveRevenue, updateRevenue } from '../utils/api'
+import { useStore } from '../composables/useStore'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -8,6 +9,8 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, TitleComponent, LegendComponent } from 'echarts/components'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, TitleComponent, LegendComponent])
+
+const { selectedStoreId, getStoreId, isSuperAdmin } = useStore()
 
 const activeTab = ref('forecast')
 const forecastData = ref([])
@@ -145,7 +148,10 @@ async function loadForecastData() {
   loading.value = true
   try {
     const m = String(currentMonth.value).padStart(2, '0')
-    forecastData.value = await getRevenue({ start_date: `${currentYear.value}-${m}-01`, end_date: `${currentYear.value}-${m}-31`, version: 'forecast' })
+    const params = { start_date: `${currentYear.value}-${m}-01`, end_date: `${currentYear.value}-${m}-31`, version: 'forecast' }
+    const storeId = getStoreId()
+    if (storeId) params.store_id = storeId
+    forecastData.value = await getRevenue(params)
   } finally {
     loading.value = false
   }
@@ -154,13 +160,20 @@ async function loadForecastData() {
 async function loadActualData() {
   try {
     const m = String(currentMonth.value).padStart(2, '0')
-    actualData.value = await getRevenue({ start_date: `${currentYear.value}-${m}-01`, end_date: `${currentYear.value}-${m}-31`, version: 'actual' })
+    const params = { start_date: `${currentYear.value}-${m}-01`, end_date: `${currentYear.value}-${m}-31`, version: 'actual' }
+    const storeId = getStoreId()
+    if (storeId) params.store_id = storeId
+    actualData.value = await getRevenue(params)
   } catch { actualData.value = [] }
 }
 
 async function loadYearData() {
-  yearData.value = await getRevenue({ start_date: `${currentYear.value}-01-01`, end_date: `${currentYear.value}-12-31`, version: 'forecast' })
-  yearActualData.value = await getRevenue({ start_date: `${currentYear.value}-01-01`, end_date: `${currentYear.value}-12-31`, version: 'actual' })
+  const storeId = getStoreId()
+  const params1 = { start_date: `${currentYear.value}-01-01`, end_date: `${currentYear.value}-12-31`, version: 'forecast' }
+  const params2 = { start_date: `${currentYear.value}-01-01`, end_date: `${currentYear.value}-12-31`, version: 'actual' }
+  if (storeId) { params1.store_id = storeId; params2.store_id = storeId }
+  yearData.value = await getRevenue(params1)
+  yearActualData.value = await getRevenue(params2)
 }
 
 // === 年度图表 ===
@@ -278,7 +291,7 @@ const actualFormTotal = computed(() => (Number(actualFormLunch.value) || 0) + (N
 
 // === 生命周期 ===
 
-watch([currentYear, currentMonth], () => {
+watch([currentYear, currentMonth, selectedStoreId], () => {
   loadForecastData()
   loadActualData()
   loadYearData()

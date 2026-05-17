@@ -39,10 +39,20 @@ router.get('/users', async (req, res) => {
 
 router.post('/users', async (req, res) => {
   try {
-    const { username, password, role, store_id } = req.body;
+    const { username, password, role, store_id, real_name } = req.body;
+
+    // 验证必填字段
+    if (!username || !password) {
+      return res.status(400).json({ error: '账号和密码不能为空' });
+    }
+    if (role === 'manager' && !store_id) {
+      return res.status(400).json({ error: '系统管理员必须绑定门店' });
+    }
+
+    const storeId = role === 'admin' ? null : Number(store_id);
     const [result] = await pool.execute(
-      'INSERT INTO users (username, password, role, store_id, is_active) VALUES (?, ?, ?, ?, 1)',
-      [username, password, role, store_id]
+      'INSERT INTO users (username, password, role, store_id, real_name, is_active) VALUES (?, ?, ?, ?, ?, 1)',
+      [username, password, role, storeId, real_name || username]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
