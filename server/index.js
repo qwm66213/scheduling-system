@@ -66,11 +66,7 @@ async function generateYesterday() {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const dateStr = yesterday.toISOString().slice(0, 10);
-    const mysql = require('mysql2/promise');
-    const pool = mysql.createPool({
-      host: 'localhost', port: 3306, user: 'root', password: 'root123',
-      database: 'mydb', waitForConnections: true, connectionLimit: 10, timezone: '+08:00'
-    });
+    const pool = require('./db-mysql');
     // 确保表存在
     await pool.execute(`CREATE TABLE IF NOT EXISTS daily_summary (
       id INT PRIMARY KEY AUTO_INCREMENT,
@@ -114,12 +110,7 @@ async function sendDailyNotification() {
     yesterday.setDate(yesterday.getDate() - 1);
     const dateStr = yesterday.toISOString().slice(0, 10);
     const axios = require('axios');
-    const mysql = require('mysql2/promise');
-
-    const pool = mysql.createPool({
-      host: 'localhost', port: 3306, user: 'root', password: 'root123',
-      database: 'mydb', waitForConnections: true, connectionLimit: 10, timezone: '+08:00'
-    });
+    const pool = require('./db-mysql');
 
     // 1. 取总数据
     const [dsRows] = await pool.execute(

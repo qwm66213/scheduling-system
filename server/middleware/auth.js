@@ -1,14 +1,4 @@
-const mysql = require('mysql2/promise');
-
-const pool = mysql.createPool({
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: 'root123',
-  database: 'mydb',
-  waitForConnections: true,
-  connectionLimit: 10
-});
+const pool = require('../db-mysql');
 
 // 认证中间件：验证用户权限并注入 store_id
 async function authMiddleware(req, res, next) {

@@ -1,19 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2/promise');
 const { getDB, save } = require('../db');
+const pool = require('../db-mysql');
 const authMiddleware = require('../middleware/auth');
-
-const pool = mysql.createPool({
-  host: 'localhost',
-  port: 3306,
-  user: 'root',
-  password: 'root123',
-  database: 'mydb',
-  waitForConnections: true,
-  connectionLimit: 10,
-  timezone: '+08:00'
-});
 
 router.use(authMiddleware);
 
