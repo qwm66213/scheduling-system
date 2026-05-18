@@ -96,7 +96,6 @@ async function generateYesterday() {
       await axios.post(`http://localhost:${PORT}/api/personal-summary/generate`, { date: dateStr });
       console.log(`[Summary] Generated daily+personal data for ${dateStr}`);
     }
-    pool.end();
   } catch (err) {
     console.error('[DailySummary] Generate failed:', err.message);
   }
@@ -122,8 +121,6 @@ async function sendDailyNotification() {
       'SELECT employee_name, front_check_count, back_check_count, bonus FROM personal_summary WHERE summary_date = ? AND (front_check_count > 0 OR back_check_count > 0) ORDER BY employee_name',
       [dateStr]
     );
-
-    pool.end();
 
     if (dsRows.length === 0) {
       console.log(`[Webhook] No daily_summary data for ${dateStr}, skip notification`);

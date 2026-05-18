@@ -1,22 +1,47 @@
 const pool = require('../db-mysql');
+const { verifyToken } = require('../utils/auth');
 
-// 认证中间件：验证用户权限并注入 store_id
+/**
+ * 认证中间件：验证 JWT Token 并注入用户信息
+ */
 async function authMiddleware(req, res, next) {
-  const userId = req.headers['x-user-id'];
-  console.log('[Auth] userId from header:', userId);
+  // 从 Authorization 头获取 Token
+  const authHeader = req.headers['authorization'];
+  let token = null;
 
-  if (!userId) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  }
+
+  // 兼容旧方式：从 x-user-id 头获取（仅用于过渡期）
+  const legacyUserId = req.headers['x-user-id'];
+
+  if (!token && !legacyUserId) {
     return res.status(401).json({ error: '未登录' });
   }
 
   try {
+    let userId;
+
+    if (token) {
+      // JWT Token 验证
+      const decoded = verifyToken(token);
+      if (!decoded) {
+        return res.status(401).json({ error: '登录已过期，请重新登录' });
+      }
+      userId = decoded.id;
+    } else {
+      // 兼容旧方式
+      userId = legacyUserId;
+    }
+
+    // 查询用户信息
     const [rows] = await pool.execute(
-      'SELECT id, username, role, store_id FROM users WHERE id = ? AND is_active = 1',
+      'SELECT id, username, role, store_id, real_name FROM users WHERE id = ? AND is_active = 1',
       [userId]
     );
 
     if (rows.length === 0) {
-      console.log('[Auth] User not found or disabled');
       return res.status(401).json({ error: '用户不存在或已禁用' });
     }
 
@@ -24,14 +49,12 @@ async function authMiddleware(req, res, next) {
     req.user = user;
     console.log('[Auth] User:', user.username, 'role:', user.role);
 
-    // 超级管理员：可以使用前端传递的 store_id，或默认查看金门店(store_id=1)
-    // 系统管理员：强制使用自己的 store_id
+    // 根据角色设置门店权限
     if (user.role === 'admin') {
       req.storeId = req.query.store_id || req.body?.store_id || 1;
     } else {
       req.storeId = user.store_id;
     }
-    console.log('[Auth] Set storeId:', req.storeId);
 
     next();
   } catch (err) {

@@ -29,6 +29,8 @@ const menuItems = computed(() => {
 
 function handleLogout() {
   localStorage.removeItem('user')
+  localStorage.removeItem('token')
+  localStorage.removeItem('refreshToken')
   localStorage.removeItem('selectedStoreId')
   window.location.href = '/login.html'
 }

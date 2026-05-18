@@ -15,6 +15,7 @@ services:
       - MYSQL_USER=root
       - MYSQL_PASSWORD=dNSlVGju3ITYLO111
       - MYSQL_DATABASE=930_db
+      - JWT_SECRET=930-prod-jwt-secret-2024-secure
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/api/config/rules"]
       interval: 30s
