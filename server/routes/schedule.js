@@ -5,6 +5,17 @@ const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
 
+/**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
 function formatDate(d) {
   if (!d) return d;
   if (d instanceof Date) {
@@ -17,28 +28,28 @@ function formatDate(d) {
   return s;
 }
 
-// GET attendance for a week
+// GET 预排班记录 for a week
 router.get('/', async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) {
-      return res.status(400).json({ error: 'start_date and end_date required' });
+      return res.status(400).json(response(0, 'start_date and end_date required'));
     }
 
-    let sql = 'SELECT a.id, a.employee_id, a.attendance_date, a.period, a.status, a.secondment_store, e.name, e.position, e.business_line, e.employment_type, e.secondment_status ' +
-      'FROM attendance a JOIN employee_profile e ON a.employee_id = e.id WHERE a.attendance_date >= ? AND a.attendance_date <= ?';
+    let sql = 'SELECT p.id, p.employee_id, p.schedule_date, p.period, p.status, p.secondment_store, e.name, e.position, e.business_line, e.employment_type, e.secondment_status ' +
+      'FROM pre_scheduling p JOIN employee_profile e ON p.employee_id = e.id WHERE p.schedule_date >= ? AND p.schedule_date <= ?';
     const params = [start_date, end_date];
     if (req.storeId) {
       sql += ' AND e.store_id = ?';
       params.push(req.storeId);
     }
-    sql += ' ORDER BY a.attendance_date, a.period, e.id';
+    sql += ' ORDER BY p.schedule_date, p.period, e.id';
     const [rows] = await pool.execute(sql, params);
 
     const result = rows.map(r => ({
       id: r.id,
       employee_id: r.employee_id,
-      date: formatDate(r.attendance_date),
+      date: formatDate(r.schedule_date),
       period: r.period,
       status: r.status,
       secondment_store: r.secondment_store || '',
@@ -49,18 +60,19 @@ router.get('/', async (req, res) => {
       secondment_status: r.secondment_status
     }));
 
-    res.json(result);
+    res.json(response(1, '获取成功', result));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Schedule] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
-// POST batch save attendance
+// POST batch save 预排班
 router.post('/batch', async (req, res) => {
   try {
     const { records } = req.body;
     if (!Array.isArray(records) || records.length === 0) {
-      return res.status(400).json({ error: 'records array required' });
+      return res.status(400).json(response(0, 'records array required'));
     }
 
     const conn = await pool.getConnection();
@@ -72,25 +84,25 @@ router.post('/batch', async (req, res) => {
         if (!employee_id || !date || !period) continue;
 
         const [existing] = await conn.execute(
-          'SELECT id FROM attendance WHERE employee_id = ? AND attendance_date = ? AND period = ?',
+          'SELECT id FROM pre_scheduling WHERE employee_id = ? AND schedule_date = ? AND period = ?',
           [employee_id, date, period]
         );
 
         if (existing.length > 0) {
           await conn.execute(
-            'UPDATE attendance SET status = ?, secondment_store = ? WHERE id = ?',
+            'UPDATE pre_scheduling SET status = ?, secondment_store = ? WHERE id = ?',
             [status || '', secondment_store || null, existing[0].id]
           );
         } else {
           await conn.execute(
-            'INSERT INTO attendance (employee_id, attendance_date, period, status, secondment_store) VALUES (?, ?, ?, ?, ?)',
+            'INSERT INTO pre_scheduling (employee_id, schedule_date, period, status, secondment_store) VALUES (?, ?, ?, ?, ?)',
             [employee_id, date, period, status || '', secondment_store || null]
           );
         }
       }
 
       await conn.commit();
-      res.json({ success: true });
+      res.json(response(1, '保存成功'));
     } catch (err) {
       await conn.rollback();
       throw err;
@@ -98,16 +110,17 @@ router.post('/batch', async (req, res) => {
       conn.release();
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Schedule] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
-// GET monthly attendance summary
+// GET monthly 预排班 summary
 router.get('/summary', async (req, res) => {
   try {
     const { month } = req.query;
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return res.status(400).json({ error: 'month format required: YYYY-MM' });
+      return res.status(400).json(response(0, 'month format required: YYYY-MM'));
     }
 
     const startDate = `${month}-01`;
@@ -122,15 +135,15 @@ router.get('/summary', async (req, res) => {
       'SELECT id, name, position, business_line, monthly_salary, daily_salary FROM employee_profile WHERE employment_status = "在职" ORDER BY id'
     );
 
-    // Get attendance records for the month
+    // Get 预排班 records for the month
     const [rows] = await pool.execute(
-      'SELECT a.employee_id, a.period, a.status ' +
-      'FROM attendance a ' +
-      'WHERE a.attendance_date >= ? AND a.attendance_date < ? AND a.status != ""',
+      'SELECT p.employee_id, p.period, p.status ' +
+      'FROM pre_scheduling p ' +
+      'WHERE p.schedule_date >= ? AND p.schedule_date < ? AND p.status != ""',
       [startDate, endDate]
     );
 
-    // Build attendance map by employee_id
+    // Build 预排班 map by employee_id
     const attMap = {};
     for (const r of rows) {
       if (!attMap[r.employee_id]) {
@@ -142,7 +155,7 @@ router.get('/summary', async (req, res) => {
       }
     }
 
-    // Combine: every employee appears, attendance defaults to 0
+    // Combine: every employee appears, 预排班 defaults to 0
     const result = employees.map(e => {
       const att = attMap[e.id] || { check: 0, leave: 0, absent: 0, save: 0, annual: 0, second: 0 };
       const salary_days = Math.max(0, att.check + att.annual + att.save + att.leave - att.absent * 2);
@@ -165,9 +178,10 @@ router.get('/summary', async (req, res) => {
       };
     });
 
-    res.json(result);
+    res.json(response(1, '获取成功', result));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Schedule] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 

@@ -16,7 +16,13 @@ api.interceptors.request.use(config => {
 
 // 响应拦截器：处理未登录和 Token 过期
 api.interceptors.response.use(
-  response => response,
+  response => {
+    // 统一提取后端返回的 data 字段
+    if (response.data && response.data.status === 1) {
+      return response.data
+    }
+    return response.data
+  },
   async error => {
     const originalRequest = error.config
 
@@ -73,11 +79,10 @@ export const addStaff = (data) => api.post('/staff', data).then(r => r.data)
 export const updateStaff = (id, data) => api.put(`/staff/${id}`, data).then(r => r.data)
 export const deleteStaff = (id) => api.delete(`/staff/${id}`).then(r => r.data)
 
-// Schedule / Attendance
-export const getAttendance = (params) => api.get('/schedule', { params }).then(r => r.data)
-export const initAttendance = (data) => api.post('/schedule/init', data).then(r => r.data)
-export const batchSaveAttendance = (records) => api.post('/schedule/batch', { records }).then(r => r.data)
-export const getAttendanceSummary = (params) => api.get('/schedule/summary', { params }).then(r => r.data)
+// Schedule / 预排班
+export const getSchedule = (params) => api.get('/schedule', { params }).then(r => r.data)
+export const batchSaveSchedule = (records) => api.post('/schedule/batch', { records }).then(r => r.data)
+export const getScheduleSummary = (params) => api.get('/schedule/summary', { params }).then(r => r.data)
 
 // Dashboard
 export const getDashboardSummary = (params) => api.get('/dashboard/summary', { params }).then(r => r.data)

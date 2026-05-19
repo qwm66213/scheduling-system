@@ -5,12 +5,23 @@ const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
 
+/**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
 // GET /api/personal-summary?start_date=&end_date=
 router.get('/', async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) {
-      return res.status(400).json({ error: 'start_date and end_date required' });
+      return res.status(400).json(response(0, 'start_date and end_date required'));
     }
     let sql = 'SELECT ps.id, ps.summary_date, ps.employee_name, ps.front_check_count, ps.back_check_count, ps.bonus, e.business_line, e.position ' +
       'FROM personal_summary ps LEFT JOIN employee_profile e ON ps.employee_name = e.name WHERE ps.summary_date >= ? AND ps.summary_date <= ?';
@@ -28,9 +39,10 @@ router.get('/', async (req, res) => {
       back_check_count: Number(r.back_check_count),
       bonus: Number(r.bonus)
     }));
-    res.json(result);
+    res.json(response(1, '获取成功', result));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[PersonalSummary] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
@@ -39,7 +51,7 @@ router.post('/generate', async (req, res) => {
   try {
     const { date } = req.body;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: 'date format required: YYYY-MM-DD' });
+      return res.status(400).json(response(0, 'date format required: YYYY-MM-DD'));
     }
 
     // 1. 从 daily_summary 取当日 front_bonus 和 back_bonus
@@ -55,9 +67,9 @@ router.post('/generate', async (req, res) => {
       'SELECT id, name, business_line FROM employee_profile WHERE employment_status = "在职" ORDER BY id'
     );
 
-    // 3. 查当日考勤
+    // 3. 查当日预排班
     const [attRows] = await pool.execute(
-      'SELECT a.employee_id, a.period, a.status FROM attendance a WHERE a.attendance_date = ? AND a.status = "check"',
+      'SELECT p.employee_id, p.period, p.status FROM pre_scheduling p WHERE p.schedule_date = ? AND p.status = "check"',
       [date]
     );
 
@@ -97,9 +109,10 @@ router.post('/generate', async (req, res) => {
       );
     }
 
-    res.json({ success: true });
+    res.json(response(1, '生成成功'));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[PersonalSummary] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 

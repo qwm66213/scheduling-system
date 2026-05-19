@@ -6,6 +6,17 @@ const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
 
+/**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
 // Helper: Date -> local YYYY-MM-DD (avoid toISOString UTC shift)
 function toDateStr(d) {
   if (!(d instanceof Date)) return String(d).slice(0, 10);
@@ -29,7 +40,7 @@ router.get('/summary', async (req, res) => {
   try {
     const { month } = req.query;
     if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return res.status(400).json({ error: 'month format required: YYYY-MM' });
+      return res.status(400).json(response(0, 'month format required: YYYY-MM'));
     }
 
     const startDate = `${month}-01`;
@@ -86,10 +97,10 @@ router.get('/summary', async (req, res) => {
     const frontEmployees = employees.filter(e => e.business_line === '前厅');
     const backEmployees = employees.filter(e => e.business_line !== '前厅');
 
-    // 3. Attendance salary from summary (for back staff only)
-    let attSql = 'SELECT a.employee_id, a.attendance_date, a.period, a.status FROM attendance a WHERE a.attendance_date >= ? AND a.attendance_date < ? AND a.status != ""';
+    // 3. 预排班数据 from summary (for back staff only)
+    let attSql = 'SELECT p.employee_id, p.schedule_date, p.period, p.status FROM pre_scheduling p WHERE p.schedule_date >= ? AND p.schedule_date < ? AND p.status != ""';
     const attParams = [startDate, endDate];
-    if (req.storeId) { attSql += ' AND a.employee_id IN (SELECT id FROM employee_profile WHERE store_id = ?)'; attParams.push(req.storeId); }
+    if (req.storeId) { attSql += ' AND p.employee_id IN (SELECT id FROM employee_profile WHERE store_id = ?)'; attParams.push(req.storeId); }
     const [attRows] = await pool.execute(attSql, attParams);
 
     const attMap = {};
@@ -103,13 +114,13 @@ router.get('/summary', async (req, res) => {
       }
     }
 
-    // Build attendance by date for front & back daily calculations
+    // Build 预排班 by date for front & back daily calculations
     const attByDate = {};
     const attByDateBack = {};
     for (const r of attRows) {
       const emp = employees.find(e => e.id === r.employee_id);
       if (!emp) continue;
-      const dateStr = toDateStr(r.attendance_date);
+      const dateStr = toDateStr(r.schedule_date);
       const target = emp.business_line === '前厅' ? attByDate : attByDateBack;
       if (!target[dateStr]) target[dateStr] = {};
       if (!target[dateStr][r.employee_id]) target[dateStr][r.employee_id] = {};
@@ -392,7 +403,7 @@ router.get('/summary', async (req, res) => {
     const effAchieve = dailyEffAchieve.length > 0
       ? dailyEffAchieve.reduce((a, b) => a + b, 0) / dailyEffAchieve.length : 0;
 
-    res.json({
+    res.json(response(1, '获取成功', {
       totalRevenue,
       dataDays,
       front: {
@@ -432,9 +443,10 @@ router.get('/summary', async (req, res) => {
       revenueAchieve: Math.round(revenueAchieve * 10) / 10,
       effAchieve: Math.round(effAchieve * 10) / 10,
       efficiencyStandard
-    });
+    }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Dashboard] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 

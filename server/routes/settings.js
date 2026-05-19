@@ -2,6 +2,17 @@ const express = require('express');
 const router = express.Router();
 const { getDB, save } = require('../db');
 
+/**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
 function getStandard(key) {
   const db = getDB();
   const result = db.exec('SELECT rule_value FROM scheduling_rules WHERE rule_key = ?', [key]);
@@ -22,12 +33,13 @@ router.get('/', (req, res) => {
   try {
     const frontStandard = getStandard('front_standard') || { efficiency: 2800 };
     const backStandard = getStandard('back_standard') || { efficiency: 2200 };
-    res.json({
+    res.json(response(1, '获取成功', {
       front_efficiency: frontStandard.efficiency || 2800,
       back_efficiency: backStandard.efficiency || 2200
-    });
+    }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Settings] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
@@ -45,9 +57,10 @@ router.put('/', (req, res) => {
       backStandard.efficiency = Number(back_efficiency);
       setStandard('back_standard', backStandard);
     }
-    res.json({ success: true });
+    res.json(response(1, '保存成功'));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Settings] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 

@@ -5,6 +5,17 @@ const iconv = require('iconv-lite');
 const pool = require('../db-mysql');
 const authMiddleware = require('../middleware/auth');
 
+/**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
 // 外部API配置
 const EXTERNAL_API = {
   url: 'https://app.emoosearch.com/open-api/v1/search',
@@ -12,15 +23,32 @@ const EXTERNAL_API = {
   userId: '{{Emoo-User-Id}}'
 };
 
-// 门店关键词映射（目前只有金石，后续有其他门店再补充）
+// 门店关键词映射
 const STORE_KEYWORDS = {
-  1: '金石'
+  1: '金沙江',
+  2: '凉城店',
+  3: '国和店',
+  4: '长江店',
+  5: '长阳店',
+  6: '殷高店',
+  7: '宜川店',
+  8: '中华店',
+  9: '灵石店',
+  10: '柳营店'
 };
 
 // 门店ID映射：我们的store_id -> 外部API门店ID
-// 目前只有金门店(store_id=1)映射到外部API门店ID=15
 const STORE_ID_MAPPING = {
-  1: 15  // 金门店
+  1: 15,   // 金沙江
+  2: 16,   // 凉城店
+  3: 17,   // 国和店
+  4: 18,   // 长江店
+  5: 19,   // 长阳店
+  6: 20,   // 殷高店
+  7: 21,   // 宜川店
+  8: 22,   // 中华店
+  9: 23,   // 灵石店
+  10: 24   // 柳营店
 };
 
 // 修复API返回的乱码字符串（GBK编码被当作UTF-8读取的问题）
@@ -200,7 +228,7 @@ router.get('/', async (req, res) => {
       const results = await fetchExternalRevenue(keyword);
       const data = parseExternalData(results, start_date, end_date, storeId);
       console.log('[Revenue] External data count:', data.length);
-      return res.json(data);
+      return res.json(response(1, '获取成功', data));
     }
 
     // 预估营业额从数据库获取
@@ -232,21 +260,22 @@ router.get('/', async (req, res) => {
       total_revenue: Number(r.total_revenue),
       revenue_amount: Number(r.total_revenue)
     }));
-    res.json(result);
+    res.json(response(1, '获取成功', result));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Revenue] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
 // POST - 只处理预估营业额
 router.post('/', async (req, res) => {
   try {
-    const { date, period, hall_tables, hall_avg, banquet_tables, banquet_avg, room_tables, room_avg, delivery_orders, delivery_price } = req.body;
+    const { date, period, hall_tables, hall_avg, banquet_tables, banquet_avg, room_tables, room_avg, delivery_orders, delivery_price, store_id } = req.body;
     const revs = calcRevenues({ hall_tables, hall_avg, banquet_tables, banquet_avg, room_tables, room_avg, delivery_orders, delivery_price });
 
     const [existing] = await pool.execute(
-      'SELECT id FROM revenue_detail WHERE revenue_date = ? AND meal_period = ? AND version = ?',
-      [date, period, 'forecast']
+      'SELECT id FROM revenue_detail WHERE revenue_date = ? AND meal_period = ? AND version = ? AND store_id = ?',
+      [date, period, 'forecast', store_id || req.storeId]
     );
 
     if (existing.length > 0) {
@@ -254,16 +283,17 @@ router.post('/', async (req, res) => {
         `UPDATE revenue_detail SET hall_tables=?, hall_avg=?, hall_revenue=?, banquet_tables=?, banquet_avg=?, banquet_revenue=?, room_tables=?, room_avg=?, room_revenue=?, delivery_orders=?, delivery_price=?, delivery_revenue=?, total_revenue=? WHERE id=?`,
         [hall_tables||0, hall_avg||0, revs.hall_revenue, banquet_tables||0, banquet_avg||0, revs.banquet_revenue, room_tables||0, room_avg||0, revs.room_revenue, delivery_orders||0, delivery_price||0, revs.delivery_revenue, revs.total_revenue, existing[0].id]
       );
-      res.json({ success: true, id: existing[0].id });
+      res.json(response(1, '保存成功', { id: existing[0].id }));
     } else {
       const [result] = await pool.execute(
-        `INSERT INTO revenue_detail (revenue_date, meal_period, version, hall_tables, hall_avg, hall_revenue, banquet_tables, banquet_avg, banquet_revenue, room_tables, room_avg, room_revenue, delivery_orders, delivery_price, delivery_revenue, total_revenue) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [date, period, 'forecast', hall_tables||0, hall_avg||0, revs.hall_revenue, banquet_tables||0, banquet_avg||0, revs.banquet_revenue, room_tables||0, room_avg||0, revs.room_revenue, delivery_orders||0, delivery_price||0, revs.delivery_revenue, revs.total_revenue]
+        `INSERT INTO revenue_detail (revenue_date, meal_period, version, hall_tables, hall_avg, hall_revenue, banquet_tables, banquet_avg, banquet_revenue, room_tables, room_avg, room_revenue, delivery_orders, delivery_price, delivery_revenue, total_revenue, store_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [date, period, 'forecast', hall_tables||0, hall_avg||0, revs.hall_revenue, banquet_tables||0, banquet_avg||0, revs.banquet_revenue, room_tables||0, room_avg||0, revs.room_revenue, delivery_orders||0, delivery_price||0, revs.delivery_revenue, revs.total_revenue, store_id || req.storeId]
       );
-      res.json({ success: true, id: result.insertId });
+      res.json(response(1, '保存成功', { id: result.insertId }));
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Revenue] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
@@ -276,9 +306,10 @@ router.put('/:id', async (req, res) => {
       `UPDATE revenue_detail SET hall_tables=?, hall_avg=?, hall_revenue=?, banquet_tables=?, banquet_avg=?, banquet_revenue=?, room_tables=?, room_avg=?, room_revenue=?, delivery_orders=?, delivery_price=?, delivery_revenue=?, total_revenue=? WHERE id=?`,
       [hall_tables||0, hall_avg||0, revs.hall_revenue, banquet_tables||0, banquet_avg||0, revs.banquet_revenue, room_tables||0, room_avg||0, revs.room_revenue, delivery_orders||0, delivery_price||0, revs.delivery_revenue, revs.total_revenue, req.params.id]
     );
-    res.json({ success: true });
+    res.json(response(1, '更新成功'));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Revenue] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
@@ -286,9 +317,10 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     await pool.execute('DELETE FROM revenue_detail WHERE id=?', [req.params.id]);
-    res.json({ success: true });
+    res.json(response(1, '删除成功'));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[Revenue] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 

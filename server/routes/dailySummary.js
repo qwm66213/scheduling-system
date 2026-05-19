@@ -6,6 +6,17 @@ const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
 
+/**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
 function getStandard(key) {
   const db = getDB();
   const result = db.exec('SELECT rule_value FROM scheduling_rules WHERE rule_key = ?', [key]);
@@ -19,7 +30,7 @@ router.get('/', async (req, res) => {
   try {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) {
-      return res.status(400).json({ error: 'start_date and end_date required' });
+      return res.status(400).json(response(0, 'start_date and end_date required'));
     }
     let sql = 'SELECT id, summary_date, actual_revenue, front_check_count, front_bonus, back_check_count, back_bonus, created_at FROM daily_summary WHERE summary_date >= ? AND summary_date <= ?';
     const params = [start_date, end_date];
@@ -35,9 +46,10 @@ router.get('/', async (req, res) => {
       back_check_count: Number(r.back_check_count),
       back_bonus: Number(r.back_bonus)
     }));
-    res.json(result);
+    res.json(response(1, '获取成功', result));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[DailySummary] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 
@@ -46,7 +58,7 @@ router.post('/generate', async (req, res) => {
   try {
     const { date } = req.body;
     if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      return res.status(400).json({ error: 'date format required: YYYY-MM-DD' });
+      return res.status(400).json(response(0, 'date format required: YYYY-MM-DD'));
     }
 
     // 1. 当日实收营业额 (actual版本 午+晚)
@@ -58,7 +70,7 @@ router.post('/generate', async (req, res) => {
 
     // 2. 当日前厅出勤√人次
     const [frontRows] = await pool.execute(
-      'SELECT COUNT(*) AS total_times FROM attendance a JOIN employee_profile e ON a.employee_id = e.id WHERE a.attendance_date = ? AND a.status = ? AND e.business_line = ?',
+      'SELECT COUNT(*) AS total_times FROM pre_scheduling p JOIN employee_profile e ON p.employee_id = e.id WHERE p.schedule_date = ? AND p.status = ? AND e.business_line = ?',
       [date, 'check', '前厅']
     );
     const frontCheckTimes = frontRows[0].total_times || 0;
@@ -66,7 +78,7 @@ router.post('/generate', async (req, res) => {
 
     // 3. 当日后厨出勤√人次
     const [backRows] = await pool.execute(
-      'SELECT COUNT(*) AS total_times FROM attendance a JOIN employee_profile e ON a.employee_id = e.id WHERE a.attendance_date = ? AND a.status = ? AND e.business_line != ?',
+      'SELECT COUNT(*) AS total_times FROM pre_scheduling p JOIN employee_profile e ON p.employee_id = e.id WHERE p.schedule_date = ? AND p.status = ? AND e.business_line != ?',
       [date, 'check', '前厅']
     );
     const backCheckTimes = backRows[0].total_times || 0;
@@ -102,9 +114,10 @@ router.post('/generate', async (req, res) => {
       );
     }
 
-    res.json({ success: true, data: { date, actual_revenue: actualRevenue, front_check_count: frontCheckCount, front_bonus: frontBonus, back_check_count: backCheckCount, back_bonus: backBonus } });
+    res.json(response(1, '生成成功', { date, actual_revenue: actualRevenue, front_check_count: frontCheckCount, front_bonus: frontBonus, back_check_count: backCheckCount, back_bonus: backBonus }));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('[DailySummary] Error:', err.message);
+    res.status(500).json(response(0, err.message));
   }
 });
 

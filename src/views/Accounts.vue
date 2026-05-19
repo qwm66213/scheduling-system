@@ -16,8 +16,11 @@ const form = ref({ username: '', password: '', role: 'manager', store_id: '' })
 async function loadUsers() {
   try {
     const res = await api.get('/auth/users')
-    users.value = res.data
-  } catch {}
+    users.value = res.data || []
+  } catch (e) {
+    console.error('加载用户列表失败:', e)
+    ElMessage.error('加载用户列表失败')
+  }
 }
 
 function openAdd() {
@@ -107,7 +110,7 @@ onMounted(() => {
         <el-table-column label="操作" width="180">
           <template #default="{ row }">
             <template v-if="row.role === 'admin'">
-              <span style="color: #909399;">-</span>
+              <el-tag type="info" size="small">系统账号</el-tag>
             </template>
             <template v-else>
               <el-button link type="primary" size="small" @click="openEdit(row)">编辑</el-button>
@@ -118,6 +121,12 @@ onMounted(() => {
             </template>
           </template>
         </el-table-column>
+        <template #empty>
+          <div class="empty-tip">
+            <p>暂无其他账号</p>
+            <p class="empty-sub">点击上方"新增账号"添加门店管理员</p>
+          </div>
+        </template>
       </el-table>
     </div>
     <div v-else class="no-permission">
