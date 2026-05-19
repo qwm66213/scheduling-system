@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getAttendance, batchSaveAttendance, getStaff } from '../utils/api'
+import { getSchedule, batchSaveSchedule, getStaff } from '../utils/api'
 import { useStore } from '../composables/useStore'
 
 const { selectedStoreId, getStoreId } = useStore()
@@ -9,7 +9,7 @@ const loading = ref(false)
 const activeTab = ref('后厨')
 const weekOffset = ref(0)
 const staffList = ref([])
-const attendanceMap = ref({})
+const scheduleMap = ref({})
 
 const dropdownVisible = ref(false)
 const dropdownX = ref(0)
@@ -123,12 +123,12 @@ function getCellKey(empId, date, period) {
 
 function getCellStatus(empId, date, period) {
   const key = getCellKey(empId, date, period)
-  return attendanceMap.value[key]?.status || ''
+  return scheduleMap.value[key]?.status || ''
 }
 
 function getCellStore(empId, date, period) {
   const key = getCellKey(empId, date, period)
-  return attendanceMap.value[key]?.secondment_store || ''
+  return scheduleMap.value[key]?.secondment_store || ''
 }
 
 function getCellDisplay(empId, date, period) {
@@ -143,9 +143,9 @@ function getCellDisplay(empId, date, period) {
 
 function updateCell(empId, date, period, status, store = '') {
   const key = getCellKey(empId, date, period)
-  const map = { ...attendanceMap.value }
+  const map = { ...scheduleMap.value }
   map[key] = { employee_id: empId, date, period, status, secondment_store: store }
-  attendanceMap.value = map
+  scheduleMap.value = map
 }
 
 function onCellClick(empId, date, period, event) {
@@ -174,7 +174,7 @@ async function selectStatus(status) {
   const t = dropdownTarget.value
   updateCell(t.empId, t.date, t.period, status)
   dropdownVisible.value = false
-  await batchSaveAttendance([{
+  await batchSaveSchedule([{
     employee_id: t.empId,
     date: t.date,
     period: t.period,
@@ -187,7 +187,7 @@ async function selectStore(store) {
   const t = dropdownTarget.value
   updateCell(t.empId, t.date, t.period, 'second', store)
   dropdownVisible.value = false
-  await batchSaveAttendance([{
+  await batchSaveSchedule([{
     employee_id: t.empId,
     date: t.date,
     period: t.period,
@@ -202,6 +202,7 @@ function closeDropdown() {
 
 const isNextWeek = computed(() => weekOffset.value === 1)
 const isBeyondNextWeek = computed(() => weekOffset.value > 1)
+const isCurrentOrNextWeek = computed(() => weekOffset.value >= 0 && weekOffset.value <= 1)
 
 function prevWeek() { weekOffset.value-- }
 function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
@@ -220,15 +221,15 @@ async function loadAttendance() {
   const params = { start_date: dates[0], end_date: dates[6] }
   const storeId = getStoreId()
   if (storeId) params.store_id = storeId
-  const data = await getAttendance(params)
+  const data = await getSchedule(params)
   const map = {}
   for (const r of data) {
     const key = getCellKey(r.employee_id, r.date, r.period)
     map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
   }
 
-  // 下一周：自动将所有在职员工出勤状态设为√
-  if (isNextWeek.value && Object.keys(map).length === 0) {
+  // 当前周或下一周：自动将所有在职员工出勤状态设为√
+  if (isCurrentOrNextWeek.value && Object.keys(map).length === 0) {
     for (const emp of staffList.value) {
       if (emp.employment_status !== '在职') continue
       for (let i = 0; i < weekDates.value.length; i++) {
@@ -242,7 +243,7 @@ async function loadAttendance() {
     }
   }
 
-  attendanceMap.value = map
+  scheduleMap.value = map
 }
 
 onMounted(async () => {

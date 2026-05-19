@@ -7,8 +7,8 @@ const pool = require('../db-mysql');
 
 // 配置
 const MAX_ATTEMPTS = 5;           // 最大失败次数
-const LOCK_TIME = 15 * 60 * 1000;  // 锁定时间：15分钟
-const WINDOW_TIME = 30 * 60 * 1000; // 统计窗口：30分钟
+const LOCK_TIME = 60 * 1000;       // 锁定时间：60秒
+const WINDOW_TIME = 5 * 60 * 1000; // 统计窗口：5分钟
 
 /**
  * 初始化登录限制表

@@ -63,7 +63,7 @@ async function initAdmin() {
 
     // 4. 创建账号
     await pool.execute(
-      'INSERT INTO users (username, password, role, real_name, is_active) VALUES (?, ?, ?, ?, 1)',
+      'INSERT INTO users (username, password, role, store_id, real_name, is_active) VALUES (?, ?, ?, NULL, ?, 1)',
       [ADMIN_CONFIG.username, hashedPassword, ADMIN_CONFIG.role, ADMIN_CONFIG.real_name]
     );
     console.log(`✓ 超级管理员账号 "${ADMIN_CONFIG.username}" 创建成功`);

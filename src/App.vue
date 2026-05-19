@@ -14,7 +14,6 @@ const allMenuItems = [
   { path: '/', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
   { path: '/schedule', icon: 'Calendar', title: '预排班' },
-  { path: '/attendance', icon: 'Checked', title: '考勤记录' },
   { path: '/staff', icon: 'User', title: '员工管理' },
   { path: '/accounts', icon: 'UserFilled', title: '账号管理', adminOnly: true },
   { path: '/settings', icon: 'Setting', title: '设置' },
