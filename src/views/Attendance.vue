@@ -3,7 +3,7 @@ import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { getAttendance, batchSaveAttendance, getStaff } from '../utils/api'
 import { useStore } from '../composables/useStore'
 
-const { selectedStoreId, getStoreId } = useStore()
+const { STORES, STORE_ID_LIST, selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const activeTab = ref('后厨')
@@ -23,7 +23,6 @@ const STATUS_OPTIONS = [
   { value: 'save', label: '存', desc: '存休' },
   { value: 'annual', label: '年', desc: '休年假' }
 ]
-const STORES = ['金', '凉', '国', '长', '阳', '殷', '宜', '中', '灵', '柳']
 
 const backPositions = ['厨师长', '副厨', '第一炉灶', '第二炉灶', '第三炉灶', '第四炉灶', '第五炉灶', '第六炉灶', '冷菜主管', '冷菜', '蒸箱', '点心师傅', '切配主管', '切配', '海鲜师傅', '打荷', '洗碗洗菜', '寒暑假工', '小时工']
 const frontPositions = ['店长', '前厅经理', '前厅主管', '收银', '金牌师傅', '迎宾', '服务员', '外卖', '保洁', '小时工']
@@ -359,7 +358,7 @@ watch(selectedStoreId, async () => {
         <div class="dropdown-section">
           <div class="dropdown-title">借调门店</div>
           <div class="store-list">
-            <div class="store-item" v-for="store in STORES" :key="store" @click="selectStore(store)">{{ store }}</div>
+            <div class="store-item" v-for="id in STORE_ID_LIST" :key="id" @click="selectStore(id)">{{ STORES[id] }}</div>
           </div>
         </div>
       </div>

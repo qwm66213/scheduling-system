@@ -2,11 +2,12 @@
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import api from '../utils/api'
+import { useStore } from '../composables/useStore'
 
 const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
 const isSuperAdmin = computed(() => user.value.role === 'admin')
 
-const STORES = ['金', '凉', '国', '长', '阳', '殷', '宜', '中', '灵', '柳']
+const { STORES, STORE_ID_LIST } = useStore()
 
 const users = ref([])
 const dialogVisible = ref(false)
@@ -75,7 +76,7 @@ async function deleteUser(row) {
 }
 
 function getStoreName(storeId) {
-  return STORES[storeId - 1] || '-'
+  return STORES[storeId] || '-'
 }
 
 onMounted(() => {
@@ -143,7 +144,7 @@ onMounted(() => {
       </el-form-item>
       <el-form-item label="门店" required>
         <el-select v-model="form.store_id" placeholder="请选择门店" style="width: 100%">
-          <el-option v-for="(store, index) in STORES" :key="index" :label="store" :value="index + 1" />
+          <el-option v-for="id in STORE_ID_LIST" :key="id" :label="STORES[id]" :value="id" />
         </el-select>
       </el-form-item>
       <el-form-item label="角色">

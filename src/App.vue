@@ -8,7 +8,7 @@ const router = useRouter()
 const isCollapse = ref(false)
 
 const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
-const { STORES, selectedStoreId, isSuperAdmin, initStore, setStoreId, getStoreName } = useStore()
+const { STORES, STORE_ID_LIST, selectedStoreId, isSuperAdmin, initStore, setStoreId, getStoreName } = useStore()
 
 const allMenuItems = [
   { path: '/', icon: 'DataAnalysis', title: '数据看板' },
@@ -80,8 +80,8 @@ onMounted(() => {
             <div style="display: flex; align-items: center; gap: 10px; background: #ecf5ff; padding: 10px 20px; border-radius: 8px; border: 1px solid #b3d8ff;">
               <span style="font-size: 16px; color: #409eff;">当前门店：</span>
               <b style="font-size: 18px; color: #409eff;">{{ getStoreName(selectedStoreId) }}</b>
-              <el-select v-model="selectedStoreId" placeholder="选择门店" style="width: 100px;" @change="handleStoreChange">
-                <el-option v-for="(store, index) in STORES" :key="index" :label="store" :value="index + 1" />
+              <el-select v-model="selectedStoreId" placeholder="选择门店" style="width: 120px;" @change="handleStoreChange">
+                <el-option v-for="id in STORE_ID_LIST" :key="id" :label="STORES[id]" :value="id" />
               </el-select>
             </div>
           </template>
