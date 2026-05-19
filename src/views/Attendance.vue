@@ -1,22 +1,20 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getSchedule, batchSaveSchedule, getStaff } from '../utils/api'
+import { getAttendance, batchSaveAttendance, getStaff } from '../utils/api'
 import { useStore } from '../composables/useStore'
 
 const { selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const activeTab = ref('后厨')
-const weekOffset = ref(0)
+const currentMonth = ref('')
 const staffList = ref([])
-const scheduleMap = ref({})
+const attendanceMap = ref({})
 
 const dropdownVisible = ref(false)
 const dropdownX = ref(0)
 const dropdownY = ref(0)
 const dropdownTarget = ref(null)
-
-const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
 const STATUS_OPTIONS = [
   { value: 'check', label: '√', desc: '出勤' },
@@ -32,24 +30,25 @@ const frontPositions = ['店长', '前厅经理', '前厅主管', '收银', '金
 const backRank = Object.fromEntries(backPositions.map((p, i) => [p, i]))
 const frontRank = Object.fromEntries(frontPositions.map((p, i) => [p, i]))
 
-const weekDates = computed(() => {
-  const today = new Date()
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - ((today.getDay() + 6) % 7) + weekOffset.value * 7)
+// 计算当前月的所有日期
+const monthDates = computed(() => {
+  if (!currentMonth.value) return []
+  const [year, month] = currentMonth.value.split('-')
+  const daysInMonth = new Date(parseInt(year), parseInt(month), 0).getDate()
   const dates = []
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(monday)
-    d.setDate(monday.getDate() + i)
-    dates.push(d.toISOString().slice(0, 10))
+  for (let i = 1; i <= daysInMonth; i++) {
+    dates.push(`${year}-${month}-${String(i).padStart(2, '0')}`)
   }
   return dates
 })
 
-const weekLabel = computed(() => {
-  const dates = weekDates.value
-  return `${dates[0].slice(5)} ~ ${dates[6].slice(5)}`
+const monthLabel = computed(() => {
+  if (!currentMonth.value) return ''
+  const [year, month] = currentMonth.value.split('-')
+  return `${year}年${month}月`
 })
 
+// 今日信息
 const todayInfo = computed(() => {
   const today = new Date()
   const weekNames = ['日', '一', '二', '三', '四', '五', '六']
@@ -59,32 +58,44 @@ const todayInfo = computed(() => {
   }
 })
 
-const weekInfo = computed(() => {
-  const today = new Date()
-  const jan1 = new Date(today.getFullYear(), 0, 1)
-  const weekNum = Math.ceil(((today - jan1) / 86400000 + jan1.getDay() + 1) / 7)
-  return {
-    range: weekLabel.value,
-    weekNum
-  }
-})
-
+// 月份信息
 const monthInfo = computed(() => {
-  const today = new Date()
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate()
+  if (!currentMonth.value) return { label: '', days: 0 }
+  const [year, month] = currentMonth.value.split('-').map(Number)
+  const daysInMonth = new Date(year, month, 0).getDate()
   return {
-    label: `${today.getFullYear()}年${String(today.getMonth() + 1).padStart(2, '0')}月`,
+    label: `${year}年${String(month).padStart(2, '0')}月`,
     days: daysInMonth
   }
 })
 
-const yearInfo = computed(() => {
-  const y = new Date().getFullYear()
-  const isLeap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
-  return {
-    year: y,
-    days: isLeap ? 366 : 365
+// 列定义：每天两个时段
+const dayColumns = computed(() => {
+  const cols = []
+  for (const date of monthDates.value) {
+    cols.push({ date, period: 'am' })
+    cols.push({ date, period: 'pm' })
   }
+  return cols
+})
+
+// 日期表头：按天分组
+const dayHeaders = computed(() => {
+  return monthDates.value.map((date, i) => {
+    const d = new Date(date)
+    const weekNames = ['日', '一', '二', '三', '四', '五', '六']
+    return {
+      date,
+      dayIndex: i,
+      dayOfWeek: '周' + weekNames[d.getDay()]
+    }
+  })
+})
+
+// Grid template: 2固定列 + 动态数据列（固定宽度，可横向滚动）
+const gridTemplate = computed(() => {
+  const dataCols = dayColumns.value.length
+  return '75px 75px repeat(' + dataCols + ', 93px)'
 })
 
 const filteredStaff = computed(() => {
@@ -97,38 +108,18 @@ const filteredStaff = computed(() => {
 const backStaffCount = computed(() => staffList.value.filter(r => r.business_line === '后厨' && r.employment_status === '在职').length)
 const frontStaffCount = computed(() => staffList.value.filter(r => r.business_line === '前厅' && r.employment_status === '在职').length)
 
-// 14个时段列
-const dayColumns = computed(() => {
-  const cols = []
-  for (let i = 0; i < weekDates.value.length; i++) {
-    cols.push({ date: weekDates.value[i], dayIndex: i, period: 'am' })
-    cols.push({ date: weekDates.value[i], dayIndex: i, period: 'pm' })
-  }
-  return cols
-})
-
-// 7个日期表头
-const dayHeaders = computed(() => {
-  return weekDates.value.map((d, i) => ({ date: d, dayIndex: i }))
-})
-
-// Grid template: 2固定列 + 14固定宽度列（充满内容区）
-const gridTemplate = computed(() => {
-  return '75px 75px repeat(14, 93px)'
-})
-
 function getCellKey(empId, date, period) {
   return `${empId}_${date}_${period}`
 }
 
 function getCellStatus(empId, date, period) {
   const key = getCellKey(empId, date, period)
-  return scheduleMap.value[key]?.status || ''
+  return attendanceMap.value[key]?.status || ''
 }
 
 function getCellStore(empId, date, period) {
   const key = getCellKey(empId, date, period)
-  return scheduleMap.value[key]?.secondment_store || ''
+  return attendanceMap.value[key]?.secondment_store || ''
 }
 
 function getCellDisplay(empId, date, period) {
@@ -143,9 +134,9 @@ function getCellDisplay(empId, date, period) {
 
 function updateCell(empId, date, period, status, store = '') {
   const key = getCellKey(empId, date, period)
-  const map = { ...scheduleMap.value }
+  const map = { ...attendanceMap.value }
   map[key] = { employee_id: empId, date, period, status, secondment_store: store }
-  scheduleMap.value = map
+  attendanceMap.value = map
 }
 
 function onCellClick(empId, date, period, event) {
@@ -154,13 +145,11 @@ function onCellClick(empId, date, period, event) {
   const rect = cell.getBoundingClientRect()
   const dropdownHeight = 280
   const dropdownWidth = 160
-  // 下方空间不够则向上弹出
   if (rect.bottom + dropdownHeight > window.innerHeight) {
     dropdownY.value = rect.top - dropdownHeight - 2
   } else {
     dropdownY.value = rect.bottom + 2
   }
-  // 右侧空间不够则向左偏移
   if (rect.left + dropdownWidth > window.innerWidth) {
     dropdownX.value = rect.right - dropdownWidth
   } else {
@@ -174,7 +163,7 @@ async function selectStatus(status) {
   const t = dropdownTarget.value
   updateCell(t.empId, t.date, t.period, status)
   dropdownVisible.value = false
-  await batchSaveSchedule([{
+  await batchSaveAttendance([{
     employee_id: t.empId,
     date: t.date,
     period: t.period,
@@ -188,7 +177,7 @@ async function selectStore(store) {
   const t = dropdownTarget.value
   updateCell(t.empId, t.date, t.period, 'second', store)
   dropdownVisible.value = false
-  await batchSaveSchedule([{
+  await batchSaveAttendance([{
     employee_id: t.empId,
     date: t.date,
     period: t.period,
@@ -202,13 +191,25 @@ function closeDropdown() {
   dropdownVisible.value = false
 }
 
-const isNextWeek = computed(() => weekOffset.value === 1)
-const isBeyondNextWeek = computed(() => weekOffset.value > 1)
-const isCurrentOrNextWeek = computed(() => weekOffset.value >= 0 && weekOffset.value <= 1)
+function prevMonth() {
+  if (!currentMonth.value) return
+  const [year, month] = currentMonth.value.split('-').map(Number)
+  const newMonth = month === 1 ? 12 : month - 1
+  const newYear = month === 1 ? year - 1 : year
+  currentMonth.value = `${newYear}-${String(newMonth).padStart(2, '0')}`
+}
 
-function prevWeek() { weekOffset.value-- }
-function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
-function thisWeek() { weekOffset.value = 0 }
+function nextMonth() {
+  if (!currentMonth.value) return
+  const [year, month] = currentMonth.value.split('-').map(Number)
+  const newMonth = month === 12 ? 1 : month + 1
+  const newYear = month === 12 ? year + 1 : year
+  currentMonth.value = `${newYear}-${String(newMonth).padStart(2, '0')}`
+}
+
+function goToMonth(month) {
+  currentMonth.value = month
+}
 
 async function loadStaff() {
   const params = {}
@@ -219,36 +220,22 @@ async function loadStaff() {
 }
 
 async function loadAttendance() {
-  const dates = weekDates.value
-  const params = { start_date: dates[0], end_date: dates[6] }
+  if (!currentMonth.value) return
+  const params = { month: currentMonth.value }
   const storeId = getStoreId()
   if (storeId) params.store_id = storeId
-  const data = await getSchedule(params)
+  const data = await getAttendance(params)
   const map = {}
   for (const r of data) {
     const key = getCellKey(r.employee_id, r.date, r.period)
     map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
   }
-
-  // 当前周或下一周：自动将所有在职员工出勤状态设为√
-  if (isCurrentOrNextWeek.value && Object.keys(map).length === 0) {
-    for (const emp of staffList.value) {
-      if (emp.employment_status !== '在职') continue
-      for (let i = 0; i < weekDates.value.length; i++) {
-        for (const period of ['am', 'pm']) {
-          const key = getCellKey(emp.id, weekDates.value[i], period)
-          if (!map[key]) {
-            map[key] = { employee_id: emp.id, date: weekDates.value[i], period, status: 'check', secondment_store: '' }
-          }
-        }
-      }
-    }
-  }
-
-  scheduleMap.value = map
+  attendanceMap.value = map
 }
 
 onMounted(async () => {
+  const now = new Date()
+  currentMonth.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   loading.value = true
   try {
     await loadStaff()
@@ -263,7 +250,7 @@ onUnmounted(() => {
   document.removeEventListener('click', closeDropdown)
 })
 
-watch(weekOffset, async () => {
+watch(currentMonth, async () => {
   loading.value = true
   try {
     await loadAttendance()
@@ -284,21 +271,21 @@ watch(selectedStoreId, async () => {
 </script>
 
 <template>
-  <div class="schedule-page">
+  <div class="attendance-page">
     <div class="time-cards">
       <div class="time-card">
         <div class="time-card-label">今天是</div>
         <div class="time-card-value">{{ todayInfo.date }}</div>
         <div class="time-card-sub">{{ todayInfo.weekday }}</div>
       </div>
-      <div class="time-card active" @click="thisWeek">
-        <div class="time-card-label">本周</div>
+      <div class="time-card active">
+        <div class="time-card-label">本月</div>
         <div class="time-card-value">
-          <el-button text class="card-arrow" @click.stop="prevWeek"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
-          {{ weekInfo.range }}
-          <el-button text class="card-arrow" :disabled="isNextWeek" @click.stop="nextWeek"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
+          <el-button text class="card-arrow" @click="prevMonth"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
+          {{ monthInfo.label }}
+          <el-button text class="card-arrow" @click="nextMonth"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
         </div>
-        <div class="time-card-sub">第 {{ weekInfo.weekNum }} 周</div>
+        <div class="time-card-sub">共 {{ monthInfo.days }} 天</div>
       </div>
     </div>
 
@@ -318,14 +305,16 @@ watch(selectedStoreId, async () => {
         <div class="g-cell g-header g-pos" style="grid-row:1;grid-column:2;">岗位</div>
         <!-- 姓名和岗位下方合并为一个单元格填写出勤 -->
         <div class="g-cell g-header g-sub" style="grid-row:2;grid-column:1 / span 2;">出勤</div>
+
+        <!-- 表头：日期列 -->
         <div v-for="(h, idx) in dayHeaders" :key="h.date"
           class="g-cell g-header g-day"
           :style="{ gridRow: 1, gridColumn: (3 + idx * 2) + ' / span 2' }">
-          <div class="day-header">周{{ weekDays[h.dayIndex] }}</div>
+          <div class="day-header">{{ h.dayOfWeek }}</div>
           <div class="day-date">{{ h.date.slice(5) }}</div>
         </div>
 
-        <!-- 表头第二行 -->
+        <!-- 表头：时段列 -->
         <div v-for="(c, idx) in dayColumns" :key="'p-'+c.date+'-'+c.period"
           class="g-cell g-header g-period"
           :style="{ gridRow: 2, gridColumn: 3 + idx }">
@@ -379,7 +368,7 @@ watch(selectedStoreId, async () => {
 </template>
 
 <style scoped>
-.schedule-page {
+.attendance-page {
   min-height: calc(100vh - 60px - 32px);
   display: flex;
   flex-direction: column;
