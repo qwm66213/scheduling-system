@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { getDB, save } = require('../db');
 const pool = require('../db-mysql');
 const authMiddleware = require('../middleware/auth');
 
@@ -26,12 +25,14 @@ function toDateStr(d) {
   return `${y}-${m}-${day}`;
 }
 
-// Helper: read standard values from SQLite scheduling_rules
-function getStandard(key) {
-  const db = getDB();
-  const result = db.exec('SELECT rule_value FROM scheduling_rules WHERE rule_key = ?', [key]);
-  if (!result[0] || !result[0].values[0]) return null;
-  const val = result[0].values[0][0];
+// Helper: read standard values from MySQL scheduling_rules
+async function getStandard(key, storeId = 1) {
+  const [rows] = await pool.execute(
+    'SELECT rule_value FROM scheduling_rules WHERE rule_key = ? AND store_id = ?',
+    [key, storeId]
+  );
+  if (!rows.length) return null;
+  const val = rows[0].rule_value;
   try { return JSON.parse(val); } catch { return Number(val) || 0; }
 }
 
@@ -43,6 +44,7 @@ router.get('/summary', async (req, res) => {
       return res.status(400).json(response(0, 'month format required: YYYY-MM'));
     }
 
+    const storeId = req.storeId || 1;
     const startDate = `${month}-01`;
     const [nextMonth] = await pool.execute(
       'SELECT DATE_FORMAT(DATE_ADD(?, INTERVAL 1 MONTH), "%Y-%m-01") AS nm',
@@ -128,7 +130,7 @@ router.get('/summary', async (req, res) => {
     }
 
     // Config values for front formula
-    const frontExtra = getStandard('front_extra') || { hourly_hours: 0, secondment: 0 };
+    const frontExtra = await getStandard('front_extra', storeId) || { hourly_hours: 0, secondment: 0 };
 
     // 生成整月所有日期
     const [monthDays] = await pool.execute(
@@ -238,7 +240,7 @@ router.get('/summary', async (req, res) => {
     let backSalaryTotal = 0;
 
     // Config values for back formula
-    const backExtra = getStandard('back_extra') || { hourly_hours: 0, secondment: 0 };
+    const backExtra = await getStandard('back_extra', storeId) || { hourly_hours: 0, secondment: 0 };
 
     for (const date of allDates) {
       const dayAtts = attByDateBack[date] || {};
@@ -351,11 +353,11 @@ router.get('/summary', async (req, res) => {
     const totalSalary = frontSalary + backSalary;
 
     // 4. Standard values from config
-    const frontStandard = getStandard('front_standard') || { efficiency: 2800, salary: 69195, ratio: 8.0 };
-    const backStandard = getStandard('back_standard') || { efficiency: 2200, salary: 108117, ratio: 12.5 };
-    const totalStandard = getStandard('total_standard') || { efficiency: 1200, salary: 177312, ratio: 20.5 };
-    const revenueTarget = getStandard('revenue_target') || 864936;
-    const efficiencyStandard = getStandard('efficiency_standard') || { revenue: 100, efficiency: 100 };
+    const frontStandard = await getStandard('front_standard', storeId) || { efficiency: 2800, salary: 69195, ratio: 8.0 };
+    const backStandard = await getStandard('back_standard', storeId) || { efficiency: 2200, salary: 108117, ratio: 12.5 };
+    const totalStandard = await getStandard('total_standard', storeId) || { efficiency: 1200, salary: 177312, ratio: 20.5 };
+    const revenueTarget = await getStandard('revenue_target', storeId) || 864936;
+    const efficiencyStandard = await getStandard('efficiency_standard', storeId) || { revenue: 100, efficiency: 100 };
 
     // 5. Dynamic staff standard: 月实际营业额 ÷ 标准人效 ÷ 有数据天数
     const frontStaffStd = (dataDays > 0 && frontStandard.efficiency > 0)

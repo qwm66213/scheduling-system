@@ -124,7 +124,6 @@ onMounted(() => {
         <template #empty>
           <div class="empty-tip">
             <p>暂无其他账号</p>
-            <p class="empty-sub">点击上方"新增账号"添加门店管理员</p>
           </div>
         </template>
       </el-table>

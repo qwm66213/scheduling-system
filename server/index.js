@@ -1,11 +1,11 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDB } = require('./db');
 
 const revenueRoutes = require('./routes/revenue');
 const staffRoutes = require('./routes/staff');
 const scheduleRoutes = require('./routes/schedule');
+const attendanceRoutes = require('./routes/attendance');
 const dashboardRoutes = require('./routes/dashboard');
 const settingsRoutes = require('./routes/settings');
 const dailySummaryRoutes = require('./routes/dailySummary');
@@ -21,6 +21,7 @@ app.use(express.json());
 app.use('/api/revenue', revenueRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/schedule', scheduleRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/daily-summary', dailySummaryRoutes);
@@ -31,17 +32,44 @@ app.use('/api/auth', authRoutes);
 const distPath = path.join(__dirname, '..', 'dist');
 const publicPath = path.join(__dirname, '..', 'public');
 app.use(express.static(publicPath));
-app.use(express.static(distPath));
-app.get('/{*splat}', (req, res) => {
-  res.sendFile(path.join(distPath, 'index.html'));
+// Only serve static files from dist if it exists
+if (require('fs').existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
+// Catch-all for SPA - must come after all API routes
+// Using a regex pattern that doesn't match /api/* paths
+app.get(/^\/(?!api\/).*/, (req, res) => {
+  const indexPath = path.join(distPath, 'index.html');
+  if (require('fs').existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(404).json({ error: 'Frontend not built. Run npm run build first.' });
+  }
 });
 
 async function start() {
-  await initDB();
+  await ensureAttendanceTable();
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
     scheduleDailySummary();
   });
+}
+
+async function ensureAttendanceTable() {
+  const pool = require('./db-mysql');
+  await pool.execute(`CREATE TABLE IF NOT EXISTS attendance_record (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    employee_id INT NOT NULL,
+    schedule_date DATE NOT NULL,
+    period VARCHAR(10) NOT NULL COMMENT '班次时段: am/pm',
+    status VARCHAR(20) NOT NULL DEFAULT '' COMMENT '出勤状态: check/leave/absent/save/annual/second',
+    secondment_store VARCHAR(50) DEFAULT NULL COMMENT '借调门店',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_employee_date (employee_id, schedule_date),
+    INDEX idx_date (schedule_date),
+    UNIQUE KEY unique_attendance (employee_id, schedule_date, period)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT='考勤记录表'`);
 }
 
 function scheduleDailySummary() {

@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { getDB, save } = require('../db');
+const pool = require('../db-mysql');
+const authMiddleware = require('../middleware/auth');
+
+router.use(authMiddleware);
 
 /**
  * 统一响应格式
@@ -13,26 +16,30 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
-function getStandard(key) {
-  const db = getDB();
-  const result = db.exec('SELECT rule_value FROM scheduling_rules WHERE rule_key = ?', [key]);
-  if (!result[0] || !result[0].values[0]) return null;
-  const val = result[0].values[0][0];
+async function getStandard(key, storeId = 1) {
+  const [rows] = await pool.execute(
+    'SELECT rule_value FROM scheduling_rules WHERE rule_key = ? AND store_id = ?',
+    [key, storeId]
+  );
+  if (!rows.length) return null;
+  const val = rows[0].rule_value;
   try { return JSON.parse(val); } catch { return Number(val) || 0; }
 }
 
-function setStandard(key, value) {
-  const db = getDB();
+async function setStandard(key, value, storeId = 1) {
   const jsonStr = JSON.stringify(value);
-  db.run('UPDATE scheduling_rules SET rule_value = ? WHERE rule_key = ?', [jsonStr, key]);
-  save();
+  await pool.execute(
+    'INSERT INTO scheduling_rules (store_id, rule_key, rule_value, description) VALUES (?, ?, ?, "") ON DUPLICATE KEY UPDATE rule_value = ?',
+    [storeId, key, jsonStr, jsonStr]
+  );
 }
 
 // GET /api/settings
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const frontStandard = getStandard('front_standard') || { efficiency: 2800 };
-    const backStandard = getStandard('back_standard') || { efficiency: 2200 };
+    const storeId = req.storeId || 1;
+    const frontStandard = await getStandard('front_standard', storeId) || { efficiency: 2800 };
+    const backStandard = await getStandard('back_standard', storeId) || { efficiency: 2200 };
     res.json(response(1, '获取成功', {
       front_efficiency: frontStandard.efficiency || 2800,
       back_efficiency: backStandard.efficiency || 2200
@@ -44,18 +51,19 @@ router.get('/', (req, res) => {
 });
 
 // PUT /api/settings
-router.put('/', (req, res) => {
+router.put('/', async (req, res) => {
   try {
+    const storeId = req.storeId || 1;
     const { front_efficiency, back_efficiency } = req.body;
     if (front_efficiency != null) {
-      const frontStandard = getStandard('front_standard') || {};
+      const frontStandard = await getStandard('front_standard', storeId) || {};
       frontStandard.efficiency = Number(front_efficiency);
-      setStandard('front_standard', frontStandard);
+      await setStandard('front_standard', frontStandard, storeId);
     }
     if (back_efficiency != null) {
-      const backStandard = getStandard('back_standard') || {};
+      const backStandard = await getStandard('back_standard', storeId) || {};
       backStandard.efficiency = Number(back_efficiency);
-      setStandard('back_standard', backStandard);
+      await setStandard('back_standard', backStandard, storeId);
     }
     res.json(response(1, '保存成功'));
   } catch (err) {

@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const { getDB, save } = require('../db');
 const pool = require('../db-mysql');
 const authMiddleware = require('../middleware/auth');
 
@@ -17,11 +16,13 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
-function getStandard(key) {
-  const db = getDB();
-  const result = db.exec('SELECT rule_value FROM scheduling_rules WHERE rule_key = ?', [key]);
-  if (!result[0] || !result[0].values[0]) return null;
-  const val = result[0].values[0][0];
+async function getStandard(key, storeId = 1) {
+  const [rows] = await pool.execute(
+    'SELECT rule_value FROM scheduling_rules WHERE rule_key = ? AND store_id = ?',
+    [key, storeId]
+  );
+  if (!rows.length) return null;
+  const val = rows[0].rule_value;
   try { return JSON.parse(val); } catch { return Number(val) || 0; }
 }
 
@@ -61,6 +62,8 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json(response(0, 'date format required: YYYY-MM-DD'));
     }
 
+    const storeId = req.storeId || 1;
+
     // 1. 当日实收营业额 (actual版本 午+晚)
     const [revRows] = await pool.execute(
       'SELECT COALESCE(SUM(total_revenue), 0) AS total FROM revenue_detail WHERE revenue_date = ? AND version = ?',
@@ -84,9 +87,9 @@ router.post('/generate', async (req, res) => {
     const backCheckTimes = backRows[0].total_times || 0;
     const backCheckCount = backCheckTimes / 2;
 
-    // 4. 从SQLite读取标准人效
-    const frontStandard = getStandard('front_standard') || { efficiency: 2800 };
-    const backStandard = getStandard('back_standard') || { efficiency: 2200 };
+    // 4. 从MySQL读取标准人效
+    const frontStandard = await getStandard('front_standard', storeId) || { efficiency: 2800 };
+    const backStandard = await getStandard('back_standard', storeId) || { efficiency: 2200 };
 
     // 5. 计算奖金: (实收 - (人次/2)×标准人效) / (人次/2)
     const frontBonus = (frontCheckCount > 0 && actualRevenue > 0)
