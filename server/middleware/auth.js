@@ -51,7 +51,7 @@ async function authMiddleware(req, res, next) {
 
     // 根据角色设置门店权限
     if (user.role === 'admin') {
-      req.storeId = req.query.store_id || req.body?.store_id || 1;
+      req.storeId = req.query.store_id || req.body?.store_id || 13;  // 默认金沙江店
     } else {
       req.storeId = user.store_id;
     }

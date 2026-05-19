@@ -18,38 +18,29 @@ function response(status, errmsg, data = null) {
 
 // 外部API配置
 const EXTERNAL_API = {
-  url: 'https://app.emoosearch.com/open-api/v1/search',
+  url: 'https://app.emoosearch.com/open-api/v1/data',
   token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
-  userId: '{{Emoo-User-Id}}'
+  userId: '{{Emoo-User-Id}}',
+  wsAppKey: 'b0d285504bb043329b6a4fb95da8ce59'  // 写在后端，不暴露
 };
 
-// 门店关键词映射
+// 门店关键词映射（已废弃，改用门店ID筛选）
 const STORE_KEYWORDS = {
-  1: '金沙江',
-  2: '凉城店',
-  3: '国和店',
-  4: '长江店',
-  5: '长阳店',
-  6: '殷高店',
-  7: '宜川店',
-  8: '中华店',
-  9: '灵石店',
-  10: '柳营店'
+  3: '殷高店',
+  4: '930长江西路店',
+  5: '930国和店',
+  7: '930宜川店',
+  8: '930小馆拾光里店',
+  9: '930浦锦路店',
+  13: '930金沙江店',
+  15: '930车站南路店',
+  16: '930中华路店',
+  18: '930柳营路店',
+  19: '930长阳店'
 };
 
-// 门店ID映射：我们的store_id -> 外部API门店ID
-const STORE_ID_MAPPING = {
-  1: 15,   // 金沙江
-  2: 16,   // 凉城店
-  3: 17,   // 国和店
-  4: 18,   // 长江店
-  5: 19,   // 长阳店
-  6: 20,   // 殷高店
-  7: 21,   // 宜川店
-  8: 22,   // 中华店
-  9: 23,   // 灵石店
-  10: 24   // 柳营店
-};
+// 门店ID映射（已废弃，新API直接使用门店ID筛选）
+const STORE_ID_MAPPING = {};
 
 // 修复API返回的乱码字符串（GBK编码被当作UTF-8读取的问题）
 function fixGarbledText(str) {
@@ -78,14 +69,40 @@ function fixGarbledText(str) {
 
 router.use(authMiddleware);
 
-// 调用外部API获取实际营业额数据
-function fetchExternalRevenue(keyword) {
-  return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({ page_size: 50, current_page: 1, keyword: keyword || '金石' });
+// 调用新API获取所有数据（游标分页）
+async function fetchAllExternalData(storeId) {
+  let allResults = [];
+  let cursor = '';
+  let hasMore = true;
+  let pageCount = 0;
+
+  while (hasMore) {
+    pageCount++;
+    const filterConditions = [[{
+      field: 'ws_app.ws_app_key',
+      operator: 'eq',
+      value: EXTERNAL_API.wsAppKey
+    }]];
+
+    // 如果指定了门店ID，添加筛选条件
+    if (storeId) {
+      filterConditions[0].push({
+        field: '门店ID',
+        operator: 'eq',
+        value: String(storeId)
+      });
+    }
+
+    const postData = JSON.stringify({
+      page_size: 200,
+      cursor: cursor,
+      text_format: 'markdown',
+      filter_conditions: filterConditions
+    });
 
     const options = {
       hostname: 'app.emoosearch.com',
-      path: '/open-api/v1/search',
+      path: '/open-api/v1/data',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json; charset=utf-8',
@@ -94,91 +111,103 @@ function fetchExternalRevenue(keyword) {
       }
     };
 
-    const req = https.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          // API返回的数据可能是GBK编码，尝试转换
-          const buffer = Buffer.concat(chunks);
-          // 先尝试UTF-8解析
-          let body = buffer.toString('utf8');
-          let json = JSON.parse(body);
-
-          // 如果解析成功但数据有乱码，尝试GBK解码
-          if (json.data?.results?.length > 0) {
-            const firstContent = json.data.results[0]?.content;
-            if (firstContent && firstContent['市别'] && !firstContent['市别'].includes('市')) {
-              // 检测到乱码，使用GBK重新解码
-              body = iconv.decode(buffer, 'gbk');
-              json = JSON.parse(body);
+    try {
+      const result = await new Promise((resolve, reject) => {
+        const req = https.request(options, res => {
+          const chunks = [];
+          res.on('data', d => chunks.push(d));
+          res.on('end', () => {
+            try {
+              const buffer = Buffer.concat(chunks);
+              const body = buffer.toString('utf8');
+              const json = JSON.parse(body);
+              if (json.code === 200 && json.data) {
+                resolve(json.data);
+              } else {
+                console.error('[Revenue] API error:', json.code, json.message);
+                resolve({ results: [], has_more: false, next_cursor: null });
+              }
+            } catch (e) {
+              console.error('[Revenue] Parse error:', e.message);
+              resolve({ results: [], has_more: false, next_cursor: null });
             }
-          }
-
-          if (json.code === 200 && json.data?.results) {
-            resolve(json.data.results);
-          } else {
-            resolve([]);
-          }
-        } catch (e) {
-          // UTF-8解析失败，尝试GBK
-          try {
-            const buffer = Buffer.concat(chunks);
-            const body = iconv.decode(buffer, 'gbk');
-            const json = JSON.parse(body);
-            if (json.code === 200 && json.data?.results) {
-              resolve(json.data.results);
-            } else {
-              resolve([]);
-            }
-          } catch (e2) {
-            resolve([]);
-          }
-        }
+          });
+        });
+        req.on('error', e => reject(e));
+        req.write(postData);
+        req.end();
       });
-    });
 
-    req.on('error', e => reject(e));
-    req.write(postData);
-    req.end();
-  });
+      if (result.results) {
+        allResults = allResults.concat(result.results);
+        console.log(`[Revenue] Page ${pageCount}: fetched ${result.results.length}, total: ${allResults.length}`);
+      }
+      hasMore = result.has_more || false;
+      cursor = result.next_cursor || '';
+    } catch (e) {
+      console.error('[Revenue] Fetch error:', e.message);
+      hasMore = false;
+    }
+  }
+
+  console.log(`[Revenue] Total fetched: ${allResults.length} items in ${pageCount} pages`);
+  return allResults;
 }
 
-// 解析外部API数据，提取午晚市营业额
-function parseExternalData(results, startDate, endDate, storeId) {
+// 解析营业汇总数据，提取午晚市营业额
+function parseBusinessSummary(results, storeId, startDate, endDate) {
   const data = [];
+  console.log('[Revenue] parseBusinessSummary: results count:', results.length, 'storeId:', storeId, 'startDate:', startDate, 'endDate:', endDate);
 
-  // 获取外部API门店ID
-  const externalStoreId = STORE_ID_MAPPING[storeId];
-  if (!externalStoreId) return data; // 没有映射关系则返回空
+  // 记录跳过原因统计
+  let skippedNoGroup = 0;
+  let skippedNoContent = 0;
+  let skippedStoreId = 0;
+  let skippedNoDate = 0;
+  let skippedDateRange = 0;
 
   for (const item of results) {
-    if (!item || !item.content) continue;
+    // 只处理营业汇总类型的数据
+    if (item.doc_group?.app_group_id !== 'business_summary') {
+      skippedNoGroup++;
+      continue;
+    }
+    if (!item.content) {
+      skippedNoContent++;
+      continue;
+    }
 
-    const content = item.content;
+    // 根据门店ID筛选
+    const itemStoreId = item.content.门店ID;
+    if (String(itemStoreId) !== String(storeId)) {
+      skippedStoreId++;
+      continue;
+    }
 
-    // 根据映射关系过滤门店
-    if (content['门店ID'] !== String(externalStoreId) && content['门店ID'] !== externalStoreId) continue;
-
-    const date = content['统计日期'];
-    if (!date) continue;
+    const date = item.content.统计日期;
+    if (!date) {
+      skippedNoDate++;
+      continue;
+    }
 
     // 日期过滤
-    if (startDate && date < startDate) continue;
-    if (endDate && date > endDate) continue;
+    if (startDate && date < startDate) {
+      skippedDateRange++;
+      continue;
+    }
+    if (endDate && date > endDate) {
+      skippedDateRange++;
+      continue;
+    }
 
     // 从市别明细数组获取午市和晚市营业额
-    const marketDetails = content['市别明细'] || [];
-    for (let i = 0; i < marketDetails.length; i++) {
-      const market = marketDetails[i];
-      const revenue = market['营业额'] || 0;
-
-      // 修复乱码并获取市别名称（API返回的字段是"市别"而不是"市别名称"）
-      const marketNameRaw = market['市别'] || '';
-      const marketName = fixGarbledText(marketNameRaw);
+    const marketDetails = item.content.市别明细 || [];
+    for (const market of marketDetails) {
+      const revenue = market.营业额 || 0;
+      const marketName = market.市别 || '';
 
       // 根据市别名称判断：午市或晚市
-      const period = marketName.includes('午') ? 'lunch' : (marketName.includes('晚') ? 'dinner' : (i === 0 ? 'lunch' : 'dinner'));
+      const period = marketName.includes('午') ? 'lunch' : (marketName.includes('晚') ? 'dinner' : 'lunch');
 
       data.push({
         date: date,
@@ -188,6 +217,7 @@ function parseExternalData(results, startDate, endDate, storeId) {
     }
   }
 
+  console.log(`[Revenue] parseBusinessSummary done: ${data.length} items. Skipped: noGroup=${skippedNoGroup}, noContent=${skippedNoContent}, storeIdMismatch=${skippedStoreId}, noDate=${skippedNoDate}, dateRange=${skippedDateRange}`);
   return data;
 }
 
@@ -217,18 +247,25 @@ const SELECT_FIELDS = 'id, revenue_date, meal_period, version, hall_tables, hall
 // GET
 router.get('/', async (req, res) => {
   try {
-    const { start_date, end_date, version } = req.query;
-    console.log('[Revenue GET] version:', version, 'storeId:', req.storeId);
+    const { start_date, end_date, version, store_id } = req.query;
+    console.log('[Revenue GET] Request received:', { start_date, end_date, version, store_id, req_storeId: req.storeId });
 
     // 实际营业额从外部API获取
     if (version === 'actual') {
-      const storeId = req.storeId || 1;  // 默认金门店
-      const keyword = STORE_KEYWORDS[storeId] || '金石';
-      console.log('[Revenue] Fetching from external API, keyword:', keyword, 'storeId:', storeId);
-      const results = await fetchExternalRevenue(keyword);
-      const data = parseExternalData(results, start_date, end_date, storeId);
-      console.log('[Revenue] External data count:', data.length);
-      return res.json(response(1, '获取成功', data));
+      // 优先使用前端传的store_id参数
+      const storeId = req.query.store_id || req.storeId || 13;
+      console.log('[Revenue] Fetching from new external API, storeId:', storeId, 'req.query.store_id:', req.query.store_id, 'req.storeId:', req.storeId);
+
+      try {
+        const results = await fetchAllExternalData(storeId);
+        const data = parseBusinessSummary(results, storeId, start_date, end_date);
+        console.log('[Revenue] External data count:', data.length);
+        return res.json(response(1, '获取成功', data));
+      } catch (apiError) {
+        console.error('[Revenue] External API error:', apiError.message);
+        // 返回详细错误信息给前端
+        return res.json(response(0, `外部API调用失败: ${apiError.message}`));
+      }
     }
 
     // 预估营业额从数据库获取
