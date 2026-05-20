@@ -27,6 +27,28 @@ const EXTERNAL_API = {
 // 所有门店ID列表
 const STORE_IDS = [3, 4, 5, 7, 8, 9, 13, 15, 16, 18, 19];
 
+/**
+ * 根据日期范围计算 app_created_at 和 app_updated_at 筛选值
+ * 通用公式：
+ *   app_created_at >= 上月最后一天 16:00:00 UTC
+ *   app_updated_at <= 本月最后一天 16:00:00 UTC
+ * @param {string} startDate - 开始日期，格式 '2026-05-01'
+ * @param {string} endDate - 结束日期，格式 '2026-05-31'
+ * @returns {object} - { createdAtGte, updatedAtLte }
+ */
+function calculateDateFilter(startDate, endDate) {
+  // 计算 app_created_at 的起始时间（startDate 前一天 16:00:00 UTC）
+  const startDateObj = new Date(startDate + 'T00:00:00+00:00');
+  startDateObj.setUTCDate(startDateObj.getUTCDate() - 1);
+  const createdAtGte = startDateObj.toISOString().replace(/\.\d{3}Z$/, '+00:00').replace(/T\d{2}:\d{2}:\d{2}/, 'T16:00:00');
+
+  // 计算 app_updated_at 的结束时间（endDate 当天 16:00:00 UTC）
+  const updatedAtLte = endDate + 'T16:00:00+00:00';
+
+  console.log('[Revenue] Date filter calculated:', { startDate, endDate, createdAtGte, updatedAtLte });
+  return { createdAtGte, updatedAtLte };
+}
+
 // 修复API返回的乱码字符串（GBK编码被当作UTF-8读取的问题）
 function fixGarbledText(str) {
   if (!str || typeof str !== 'string') return str;
@@ -55,19 +77,42 @@ function fixGarbledText(str) {
 router.use(authMiddleware);
 
 // 调用新API获取所有数据（游标分页）
-async function fetchAllExternalData(storeId) {
+// @param {string|null} storeId - 门店ID，null表示全部门店
+// @param {string} startDate - 开始日期，格式 '2026-05-01'
+// @param {string} endDate - 结束日期，格式 '2026-05-31'
+async function fetchAllExternalData(storeId, startDate, endDate) {
   let allResults = [];
   let cursor = '';
   let hasMore = true;
   let pageCount = 0;
 
+  // 计算日期筛选入参
+  const { createdAtGte, updatedAtLte } = calculateDateFilter(startDate, endDate);
+
   while (hasMore) {
     pageCount++;
-    const filterConditions = [[{
-      field: 'ws_app.ws_app_key',
-      operator: 'eq',
-      value: EXTERNAL_API.wsAppKey
-    }]];
+    const filterConditions = [[
+      {
+        field: 'ws_app.ws_app_key',
+        operator: 'eq',
+        value: EXTERNAL_API.wsAppKey
+      },
+      {
+        field: 'doc_group.app_group_id',
+        operator: 'eq',
+        value: 'business_summary'
+      },
+      {
+        field: 'app_created_at',
+        operator: 'gte',
+        value: createdAtGte
+      },
+      {
+        field: 'app_updated_at',
+        operator: 'lte',
+        value: updatedAtLte
+      }
+    ]];
 
     // 如果指定了门店ID（非 null），添加筛选条件；null 表示全部门店
     if (storeId) {
@@ -268,7 +313,7 @@ router.get('/', async (req, res) => {
           console.log('[Revenue] Fetching all stores in parallel...');
           const startTime = Date.now();
 
-          const fetchPromises = STORE_IDS.map(id => fetchAllExternalData(id));
+          const fetchPromises = STORE_IDS.map(id => fetchAllExternalData(id, start_date, end_date));
           const allResults = await Promise.all(fetchPromises);
 
           // 合并所有门店的数据
@@ -278,7 +323,7 @@ router.get('/', async (req, res) => {
           console.log(`[Revenue] Fetched all stores in ${elapsed}ms, total items: ${results.length}`);
         } else {
           // 单个门店
-          results = await fetchAllExternalData(storeId);
+          results = await fetchAllExternalData(storeId, start_date, end_date);
         }
 
         const data = parseBusinessSummary(results, null, start_date, end_date);
