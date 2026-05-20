@@ -84,7 +84,7 @@ async function fetchAllExternalData(storeId) {
       value: EXTERNAL_API.wsAppKey
     }]];
 
-    // 如果指定了门店ID，添加筛选条件
+    // 如果指定了门店ID（非 null），添加筛选条件；null 表示全部门店
     if (storeId) {
       filterConditions[0].push({
         field: '门店ID',
@@ -163,7 +163,6 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
   // 记录跳过原因统计
   let skippedNoGroup = 0;
   let skippedNoContent = 0;
-  let skippedStoreId = 0;
   let skippedNoDate = 0;
   let skippedDateRange = 0;
 
@@ -178,11 +177,12 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
       continue;
     }
 
-    // 根据门店ID筛选
-    const itemStoreId = item.content.门店ID;
-    if (String(itemStoreId) !== String(storeId)) {
-      skippedStoreId++;
-      continue;
+    // 如果指定了门店ID，进行筛选；null 表示全部门店，不筛选
+    if (storeId) {
+      const itemStoreId = item.content.门店ID;
+      if (String(itemStoreId) !== String(storeId)) {
+        continue;
+      }
     }
 
     const date = item.content.统计日期;
@@ -236,7 +236,7 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
     });
   }
 
-  console.log(`[Revenue] parseBusinessSummary done: ${data.length} items. Skipped: noGroup=${skippedNoGroup}, noContent=${skippedNoContent}, storeIdMismatch=${skippedStoreId}, noDate=${skippedNoDate}, dateRange=${skippedDateRange}`);
+  console.log(`[Revenue] parseBusinessSummary done: ${data.length} items. Skipped: noGroup=${skippedNoGroup}, noContent=${skippedNoContent}, noDate=${skippedNoDate}, dateRange=${skippedDateRange}`);
   return data;
 }
 
@@ -272,9 +272,7 @@ router.get('/', async (req, res) => {
     // 实际营业额从外部API获取
     if (version === 'actual') {
       const storeId = req.query.store_id || req.storeId;
-      if (!storeId) {
-        return res.json(response(1, '获取成功', []));
-      }
+      // storeId 为 null 表示全部门店，允许继续查询
       console.log('[Revenue] Fetching from new external API, storeId:', storeId, 'req.query.store_id:', req.query.store_id, 'req.storeId:', req.storeId);
 
       try {

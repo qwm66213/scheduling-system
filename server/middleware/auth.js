@@ -51,7 +51,13 @@ async function authMiddleware(req, res, next) {
 
     // 根据角色设置门店权限
     if (user.role === 'admin') {
-      req.storeId = req.query.store_id || req.body?.store_id || 13;  // 默认金沙江店
+      const storeIdParam = req.query.store_id || req.body?.store_id;
+      // 空字符串、'all' 都表示全部门店，设置 req.storeId = null
+      if (!storeIdParam || storeIdParam === 'all') {
+        req.storeId = null;
+      } else {
+        req.storeId = Number(storeIdParam);
+      }
     } else {
       req.storeId = user.store_id;
     }

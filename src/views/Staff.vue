@@ -7,6 +7,9 @@ const { selectedStoreId, getStoreId } = useStore()
 
 const tableData = ref([])
 const loading = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(20)
+const total = ref(0)
 
 // 今日信息
 const todayInfo = computed(() => {
@@ -21,20 +24,35 @@ const todayInfo = computed(() => {
 async function loadData() {
   loading.value = true
   try {
-    const params = {}
+    const params = { page: currentPage.value, pageSize: pageSize.value }
     const storeId = getStoreId()
     if (storeId) params.store_id = storeId
-    tableData.value = await getStaff(params)
+    const result = await getStaff(params)
+    // 兼容旧格式（数组）和新格式（分页对象）
+    if (Array.isArray(result)) {
+      tableData.value = result
+      total.value = result.length
+    } else {
+      tableData.value = result.data || []
+      total.value = result.total || 0
+    }
   } finally {
     loading.value = false
   }
+}
+
+function handlePageChange(page) {
+  currentPage.value = page
+  loadData()
 }
 
 onMounted(() => {
   loadData()
 })
 
+// 监听门店变化时重置分页
 watch(selectedStoreId, () => {
+  currentPage.value = 1
   loadData()
 })
 </script>
@@ -66,6 +84,17 @@ watch(selectedStoreId, () => {
     </el-table>
     <!-- 加载中状态 -->
     <div v-else-if="loading" v-loading="loading" style="min-height: 200px;"></div>
+
+    <!-- 分页 -->
+    <div v-if="total > 0" style="margin-top: 16px; display: flex; justify-content: flex-end;">
+      <el-pagination
+        v-model:current-page="currentPage"
+        :page-size="pageSize"
+        :total="total"
+        layout="total, prev, pager, next"
+        @current-change="handlePageChange"
+      />
+    </div>
   </div>
 </template>
 

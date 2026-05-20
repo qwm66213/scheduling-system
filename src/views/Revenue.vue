@@ -42,14 +42,6 @@ const formLunchRev = computed(() => calcPeriodRevenue(formLunch))
 const formDinnerRev = computed(() => calcPeriodRevenue(formDinner))
 const formDayTotal = computed(() => formLunchRev.value.total + formDinnerRev.value.total)
 
-// === 实际模块 ===
-const actualDialogVisible = ref(false)
-const actualEditingDate = ref('')
-const actualFormLunch = ref(0)
-const actualFormDinner = ref(0)
-const actualFormLunchId = ref(null)
-const actualFormDinnerId = ref(null)
-
 // === 共用计算 ===
 
 function buildDataMap(dataList, isActual = false) {
@@ -107,10 +99,7 @@ const actualMonthTotal = computed(() => actualData.value.reduce((s, r) => s + (r
 
 function cellBg(total) {
   if (!total) return ''
-  const max = 30000
-  const ratio = Math.min(total / max, 1)
-  const alpha = 0.08 + ratio * 0.22
-  return `background: rgba(230,162,60,${alpha.toFixed(2)})`
+  return 'background: rgba(230,162,60,0.15)'
 }
 
 function formatMoney(v) {
@@ -338,31 +327,6 @@ async function handleForecastSave() {
   await loadForecastData()
 }
 
-// === 实际弹窗 ===
-
-function openActualDialog(dateStr) {
-  actualEditingDate.value = dateStr
-  const data = actualMap.value[dateStr]
-  actualFormLunchId.value = data?.lunch?.id || null
-  actualFormDinnerId.value = data?.dinner?.id || null
-  actualFormLunch.value = Number(data?.lunch?.total_revenue) || 0
-  actualFormDinner.value = Number(data?.dinner?.total_revenue) || 0
-  actualDialogVisible.value = true
-}
-
-async function handleActualSave() {
-  if (!actualEditingDate.value) return
-  for (const [period, id, amount] of [['lunch', actualFormLunchId.value, actualFormLunch.value], ['dinner', actualFormDinnerId.value, actualFormDinner.value]]) {
-    const payload = { date: actualEditingDate.value, period, version: 'actual', revenue_amount: Number(amount) || 0 }
-    if (id) await updateRevenue(id, payload)
-    else await saveRevenue(payload)
-  }
-  actualDialogVisible.value = false
-  await loadActualData()
-}
-
-const actualFormTotal = computed(() => (Number(actualFormLunch.value) || 0) + (Number(actualFormDinner.value) || 0))
-
 // === 生命周期 ===
 
 watch([currentYear, currentMonth, selectedStoreId], () => {
@@ -450,8 +414,7 @@ onMounted(() => {
         <div class="cal-body">
           <div class="cal-cell" v-for="(item, idx) in actualCalendarDays" :key="idx"
             :class="{ empty: !item }"
-            :style="item ? cellBg(item.total) : ''"
-            @click="item && openActualDialog(item.date)">
+            :style="item ? cellBg(item.total) : ''">
             <template v-if="item">
               <div class="cell-day" :class="{ today: item.date === new Date().toISOString().slice(0,10) }">{{ item.day }}</div>
               <div class="cell-content">
@@ -553,32 +516,6 @@ onMounted(() => {
       <template #footer>
         <el-button @click="forecastDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleForecastSave">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 实际录入弹窗 -->
-    <el-dialog v-model="actualDialogVisible" :title="actualEditingDate + ' 实际营业额录入'" width="480px" destroy-on-close>
-      <div class="actual-dialog-body">
-        <div class="actual-form-row lunch-section">
-          <div class="actual-form-label lunch-color">☀ 午市</div>
-          <el-input v-model="actualFormLunch" placeholder="请输入午市营业额" size="large" style="flex: 1;">
-            <template #prepend>¥</template>
-          </el-input>
-        </div>
-        <div class="actual-form-row dinner-section">
-          <div class="actual-form-label dinner-color">🌙 晚市</div>
-          <el-input v-model="actualFormDinner" placeholder="请输入晚市营业额" size="large" style="flex: 1;">
-            <template #prepend>¥</template>
-          </el-input>
-        </div>
-        <div class="actual-day-total">
-          <span>日总实际营业额</span>
-          <span class="day-total-num">¥{{ formatMoney(actualFormTotal) }}</span>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="actualDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleActualSave">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -770,21 +707,6 @@ onMounted(() => {
 }
 
 .day-total-num { font-size: 20px; font-weight: 700; color: #e6a23c; }
-
-/* Dialog - actual */
-.actual-dialog-body { display: flex; flex-direction: column; gap: 20px; }
-
-.actual-form-row { display: flex; align-items: center; gap: 12px; }
-
-.actual-form-label { font-size: 16px; font-weight: 700; min-width: 60px; }
-
-.actual-day-total {
-  display: flex; justify-content: center; align-items: center; gap: 12px;
-  padding: 12px;
-  background: linear-gradient(135deg, #ecf5ff, #d9ecff);
-  border-radius: 6px; border: 1px solid #b3d8ff;
-  font-weight: 600; color: #606266;
-}
 
 @media (max-width: 700px) {
   .period-cards { flex-direction: column; }

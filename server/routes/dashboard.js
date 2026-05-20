@@ -45,9 +45,7 @@ router.get('/summary', async (req, res) => {
     }
 
     const storeId = req.storeId;
-    if (!storeId) {
-      return res.status(400).json(response(0, '缺少门店ID'));
-    }
+    // storeId 为 null 表示全部门店，不需要检查
     const startDate = `${month}-01`;
     const [nextMonth] = await pool.execute(
       'SELECT DATE_FORMAT(DATE_ADD(?, INTERVAL 1 MONTH), "%Y-%m-01") AS nm',

@@ -25,7 +25,7 @@ const EXTERNAL_API = {
 
 // 门店ID到门店名称的映射
 const STORE_ID_TO_NAME = {
-  3: '殷高店',
+  3: '930殷高店',
   4: '930长江西路店',
   5: '930国和店',
   7: '930宜川店',
@@ -45,6 +45,7 @@ async function fetchStaffData(storeId) {
     return { results: [] };
   }
 
+  // 先按门店名称过滤
   const postData = JSON.stringify({
     table_key: EXTERNAL_API.tableKey,
     page_size: 100,
@@ -64,7 +65,7 @@ async function fetchStaffData(storeId) {
     }
   };
 
-  return new Promise((resolve, reject) => {
+  const fetchData = (postData) => new Promise((resolve, reject) => {
     const req = https.request(options, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
@@ -89,34 +90,89 @@ async function fetchStaffData(storeId) {
     req.write(postData);
     req.end();
   });
+
+  // 先按门店名称查询
+  let data = await fetchData(postData);
+
+  // 如果没有数据，再按门店ID字段过滤
+  if (!data.results || data.results.length === 0) {
+    console.log('[Staff] No data by name, trying storeId:', storeId);
+    const postDataById = JSON.stringify({
+      table_key: EXTERNAL_API.tableKey,
+      page_size: 100,
+      current_page: 1,
+      filters: [`门店ID:eq:${storeId}`],
+      sort: 'created_at:DESC'
+    });
+    data = await fetchData(postDataById);
+  }
+
+  return data;
 }
 
 // GET - 获取员工列表
 router.get('/', async (req, res) => {
   try {
     const storeId = req.query.store_id || req.storeId;
+    const page = Number(req.query.page) || 1;
+    const pageSize = Number(req.query.pageSize) || 20;
+
+    console.log('[Staff] Fetching from OpenAPI, storeId:', storeId, 'page:', page, 'pageSize:', pageSize);
+
+    let allStaff = [];
+
     if (!storeId) {
-      // 兜底：没有storeId时返回空数组
-      return res.json(response(1, '获取成功', []));
+      // 全部门店：遍历所有门店获取数据
+      const storeIds = Object.keys(STORE_ID_TO_NAME).map(Number);
+      const fetchPromises = storeIds.map(id => fetchStaffData(id));
+      const results = await Promise.all(fetchPromises);
+
+      for (let i = 0; i < results.length; i++) {
+        const data = results[i];
+        const storeIdVal = storeIds[i];
+        if (data.results) {
+          allStaff.push(...data.results.map(item => ({
+            id: item.id,
+            store_id: storeIdVal,
+            store: item.fields?.所属门店 || STORE_ID_TO_NAME[storeIdVal] || '',
+            name: item.fields?.姓名 || '',
+            position: item.fields?.岗位 || '',
+            workName: item.fields?.工作名 || ''
+          })));
+        }
+      }
+    } else {
+      // 单个门店
+      const data = await fetchStaffData(storeId);
+      if (data.results) {
+        allStaff = data.results.map(item => ({
+          id: item.id,
+          store_id: storeId,
+          store: item.fields?.所属门店 || '',
+          name: item.fields?.姓名 || '',
+          position: item.fields?.岗位 || '',
+          workName: item.fields?.工作名 || ''
+        }));
+      }
     }
-    console.log('[Staff] Fetching from OpenAPI, storeId:', storeId);
 
-    const data = await fetchStaffData(storeId);
-    const results = (data.results || []).map(item => ({
-      id: item.id,
-      store: item.fields?.所属门店 || '',
-      name: item.fields?.姓名 || '',
-      position: item.fields?.岗位 || '',
-      workName: item.fields?.工作名 || ''
+    // 分页处理
+    const total = allStaff.length;
+    const start = (page - 1) * pageSize;
+    const pagedData = allStaff.slice(start, start + pageSize);
+
+    console.log('[Staff] Fetched:', allStaff.length, 'items, returning page', page, 'with', pagedData.length, 'items');
+
+    // 返回分页数据
+    res.json(response(1, '获取成功', {
+      data: pagedData,
+      total,
+      page,
+      pageSize
     }));
-
-    console.log('[Staff] Fetched:', results.length, 'items');
-    // 兜底：确保返回数组
-    res.json(response(1, '获取成功', results || []));
   } catch (err) {
     console.error('[Staff] Error:', err.message);
-    // 兜底：出错时返回空数组，不返回错误状态
-    res.json(response(1, '获取成功', []));
+    res.json(response(1, '获取成功', { data: [], total: 0, page: 1, pageSize: 20 }));
   }
 });
 
