@@ -62,7 +62,10 @@ router.post('/generate', async (req, res) => {
       return res.status(400).json(response(0, 'date format required: YYYY-MM-DD'));
     }
 
-    const storeId = req.storeId || 1;
+    const storeId = req.storeId;
+    if (!storeId) {
+      return res.status(400).json(response(0, '缺少门店ID'));
+    }
 
     // 1. 当日实收营业额 (actual版本 午+晚)
     const [revRows] = await pool.execute(

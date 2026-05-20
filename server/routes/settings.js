@@ -37,7 +37,10 @@ async function setStandard(key, value, storeId = 1) {
 // GET /api/settings
 router.get('/', async (req, res) => {
   try {
-    const storeId = req.storeId || 1;
+    const storeId = req.storeId;
+    if (!storeId) {
+      return res.json(response(1, '获取成功', { front_efficiency: 2800, back_efficiency: 2200 }));
+    }
     const frontStandard = await getStandard('front_standard', storeId) || { efficiency: 2800 };
     const backStandard = await getStandard('back_standard', storeId) || { efficiency: 2200 };
     res.json(response(1, '获取成功', {
@@ -53,7 +56,10 @@ router.get('/', async (req, res) => {
 // PUT /api/settings
 router.put('/', async (req, res) => {
   try {
-    const storeId = req.storeId || 1;
+    const storeId = req.storeId;
+    if (!storeId) {
+      return res.status(400).json(response(0, '缺少门店ID'));
+    }
     const { front_efficiency, back_efficiency } = req.body;
     if (front_efficiency != null) {
       const frontStandard = await getStandard('front_standard', storeId) || {};

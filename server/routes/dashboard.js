@@ -44,7 +44,10 @@ router.get('/summary', async (req, res) => {
       return res.status(400).json(response(0, 'month format required: YYYY-MM'));
     }
 
-    const storeId = req.storeId || 1;
+    const storeId = req.storeId;
+    if (!storeId) {
+      return res.status(400).json(response(0, '缺少门店ID'));
+    }
     const startDate = `${month}-01`;
     const [nextMonth] = await pool.execute(
       'SELECT DATE_FORMAT(DATE_ADD(?, INTERVAL 1 MONTH), "%Y-%m-01") AS nm',
