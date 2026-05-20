@@ -24,23 +24,8 @@ const EXTERNAL_API = {
   wsAppKey: 'b0d285504bb043329b6a4fb95da8ce59'  // 写在后端，不暴露
 };
 
-// 门店关键词映射（已废弃，改用门店ID筛选）
-const STORE_KEYWORDS = {
-  3: '殷高店',
-  4: '930长江西路店',
-  5: '930国和店',
-  7: '930宜川店',
-  8: '930小馆拾光里店',
-  9: '930浦锦路店',
-  13: '930金沙江店',
-  15: '930车站南路店',
-  16: '930中华路店',
-  18: '930柳营路店',
-  19: '930长阳店'
-};
-
-// 门店ID映射（已废弃，新API直接使用门店ID筛选）
-const STORE_ID_MAPPING = {};
+// 所有门店ID列表
+const STORE_IDS = [3, 4, 5, 7, 8, 9, 13, 15, 16, 18, 19];
 
 // 修复API返回的乱码字符串（GBK编码被当作UTF-8读取的问题）
 function fixGarbledText(str) {
@@ -276,8 +261,27 @@ router.get('/', async (req, res) => {
       console.log('[Revenue] Fetching from new external API, storeId:', storeId, 'req.query.store_id:', req.query.store_id, 'req.storeId:', req.storeId);
 
       try {
-        const results = await fetchAllExternalData(storeId);
-        const data = parseBusinessSummary(results, storeId, start_date, end_date);
+        let results = [];
+
+        if (!storeId) {
+          // 全部门店：并行获取每个门店的数据
+          console.log('[Revenue] Fetching all stores in parallel...');
+          const startTime = Date.now();
+
+          const fetchPromises = STORE_IDS.map(id => fetchAllExternalData(id));
+          const allResults = await Promise.all(fetchPromises);
+
+          // 合并所有门店的数据
+          results = allResults.flat();
+
+          const elapsed = Date.now() - startTime;
+          console.log(`[Revenue] Fetched all stores in ${elapsed}ms, total items: ${results.length}`);
+        } else {
+          // 单个门店
+          results = await fetchAllExternalData(storeId);
+        }
+
+        const data = parseBusinessSummary(results, null, start_date, end_date);
         console.log('[Revenue] External data count:', data.length);
         // 兜底：确保返回数组，空数据返回空数组而不是报错
         return res.json(response(1, '获取成功', data || []));
