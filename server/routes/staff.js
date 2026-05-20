@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db-mysql');
+const https = require('https');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -16,55 +16,95 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
+// OpenAPI 配置
+const EXTERNAL_API = {
+  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  userId: '{{Emoo-User-Id}}',
+  tableKey: 'bd_fa9be88a72f53'
+};
+
+// 门店ID到门店名称的映射
+const STORE_ID_TO_NAME = {
+  3: '殷高店',
+  4: '930长江西路店',
+  5: '930国和店',
+  7: '930宜川店',
+  8: '930小馆拾光里店',
+  9: '930浦锦路店',
+  13: '930金沙江店',
+  15: '930车站南路店',
+  16: '930中华路店',
+  18: '930柳营路店',
+  19: '930长阳店'
+};
+
+// 调用 OpenAPI 获取员工数据
+async function fetchStaffData(storeId) {
+  const storeName = STORE_ID_TO_NAME[storeId] || '930国和店';
+
+  const postData = JSON.stringify({
+    table_key: EXTERNAL_API.tableKey,
+    page_size: 100,
+    current_page: 1,
+    filters: [`所属门店:eq:${storeName}`],
+    sort: 'created_at:DESC'
+  });
+
+  const options = {
+    hostname: 'app.emoosearch.com',
+    path: '/open-api/v1/data/records/list',
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Authorization': `Bearer ${EXTERNAL_API.token}`,
+      'Emoo-User-Id': EXTERNAL_API.userId
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, res => {
+      const chunks = [];
+      res.on('data', d => chunks.push(d));
+      res.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          const body = buffer.toString('utf8');
+          const json = JSON.parse(body);
+          if (json.code === 200 && json.data) {
+            resolve(json.data);
+          } else {
+            console.error('[Staff] API error:', json.code, json.message);
+            resolve({ results: [] });
+          }
+        } catch (e) {
+          console.error('[Staff] Parse error:', e.message);
+          resolve({ results: [] });
+        }
+      });
+    });
+    req.on('error', e => reject(e));
+    req.write(postData);
+    req.end();
+  });
+}
+
+// GET - 获取员工列表
 router.get('/', async (req, res) => {
   try {
-    const { position, employment_status } = req.query;
-    let sql = 'SELECT * FROM employee_profile WHERE 1=1';
-    const params = [];
-    if (req.storeId) { sql += ' AND store_id = ?'; params.push(req.storeId); }
-    if (position) { sql += ' AND position = ?'; params.push(position); }
-    if (employment_status) { sql += ' AND employment_status = ?'; params.push(employment_status); }
-    sql += ' ORDER BY id';
-    const [rows] = await pool.execute(sql, params);
-    res.json(response(1, '获取成功', rows));
-  } catch (err) {
-    console.error('[Staff] Error:', err.message);
-    res.status(500).json(response(0, err.message));
-  }
-});
+    const storeId = req.query.store_id || req.storeId || 13;
+    console.log('[Staff] Fetching from OpenAPI, storeId:', storeId);
 
-router.post('/', async (req, res) => {
-  try {
-    const { name, employment_status, business_line, position, monthly_salary, daily_salary, employment_type, secondment_status, store_id } = req.body;
-    const [result] = await pool.execute(
-      'INSERT INTO employee_profile (name, employment_status, business_line, position, monthly_salary, daily_salary, employment_type, secondment_status, store_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [name, employment_status || '在职', business_line || '', position || '', monthly_salary || 0, daily_salary || 0, employment_type || '全职', secondment_status || 0, store_id || req.storeId]
-    );
-    res.json(response(1, '创建成功', { id: result.insertId }));
-  } catch (err) {
-    console.error('[Staff] Error:', err.message);
-    res.status(500).json(response(0, err.message));
-  }
-});
+    const data = await fetchStaffData(storeId);
+    const results = (data.results || []).map(item => ({
+      id: item.id,
+      store: item.fields?.所属门店 || '',
+      name: item.fields?.姓名 || '',
+      position: item.fields?.岗位 || '',
+      workName: item.fields?.工作名 || ''
+    }));
 
-router.put('/:id', async (req, res) => {
-  try {
-    const { name, employment_status, business_line, position, monthly_salary, daily_salary, employment_type, secondment_status, store_id } = req.body;
-    await pool.execute(
-      'UPDATE employee_profile SET name=?, employment_status=?, business_line=?, position=?, monthly_salary=?, daily_salary=?, employment_type=?, secondment_status=?, store_id=? WHERE id=?',
-      [name, employment_status, business_line || '', position || '', monthly_salary || 0, daily_salary || 0, employment_type || '全职', secondment_status || 0, store_id || req.storeId, req.params.id]
-    );
-    res.json(response(1, '更新成功'));
-  } catch (err) {
-    console.error('[Staff] Error:', err.message);
-    res.status(500).json(response(0, err.message));
-  }
-});
-
-router.delete('/:id', async (req, res) => {
-  try {
-    await pool.execute('DELETE FROM employee_profile WHERE id=?', [req.params.id]);
-    res.json(response(1, '删除成功'));
+    console.log('[Staff] Fetched:', results.length, 'items');
+    res.json(response(1, '获取成功', results));
   } catch (err) {
     console.error('[Staff] Error:', err.message);
     res.status(500).json(response(0, err.message));

@@ -75,9 +75,6 @@ export const batchImportRevenue = (records) => api.post('/revenue/batch', { reco
 
 // Staff
 export const getStaff = (params) => api.get('/staff', { params }).then(r => r.data)
-export const addStaff = (data) => api.post('/staff', data).then(r => r.data)
-export const updateStaff = (id, data) => api.put(`/staff/${id}`, data).then(r => r.data)
-export const deleteStaff = (id) => api.delete(`/staff/${id}`).then(r => r.data)
 
 // Schedule / 预排班
 export const getSchedule = (params) => api.get('/schedule', { params }).then(r => r.data)

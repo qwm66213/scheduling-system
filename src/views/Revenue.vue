@@ -136,20 +136,81 @@ const monthInfo = computed(() => {
   }
 })
 
+// 计算可选月份范围（最近半年，不含下个月），降序排列
+const availableMonths = computed(() => {
+  const now = new Date()
+  const currentY = now.getFullYear()
+  const currentM = now.getMonth() + 1
+  const months = []
+  for (let i = 0; i <= 5; i++) {  // 从当前月开始，往前推5个月
+    const date = new Date(currentY, currentM - 1 - i, 1)
+    months.push({
+      year: date.getFullYear(),
+      month: date.getMonth() + 1,
+      label: `${date.getFullYear()}年${date.getMonth() + 1}月`
+    })
+  }
+  return months
+})
+
 function thisMonth() {
   currentYear.value = new Date().getFullYear()
   currentMonth.value = new Date().getMonth() + 1
 }
 
 function prevMonth() {
-  if (currentMonth.value === 1) { currentMonth.value = 12; currentYear.value-- }
-  else currentMonth.value--
+  const minDate = new Date()
+  minDate.setMonth(minDate.getMonth() - 5)
+  const minY = minDate.getFullYear()
+  const minM = minDate.getMonth() + 1
+
+  if (currentYear.value < minY ||
+      (currentYear.value === minY && currentMonth.value <= minM)) {
+    return // 已到达最早可查看月份
+  }
+
+  if (currentMonth.value === 1) {
+    currentYear.value--
+    currentMonth.value = 12
+  } else {
+    currentMonth.value--
+  }
 }
 
 function nextMonth() {
-  if (currentMonth.value === 12) { currentMonth.value = 1; currentYear.value++ }
-  else currentMonth.value++
+  const now = new Date()
+  const maxY = now.getFullYear()
+  const maxM = now.getMonth() + 1
+
+  if (currentYear.value > maxY ||
+      (currentYear.value === maxY && currentMonth.value >= maxM)) {
+    return // 已到达最晚可查看月份（当前月）
+  }
+
+  if (currentMonth.value === 12) {
+    currentYear.value++
+    currentMonth.value = 1
+  } else {
+    currentMonth.value++
+  }
 }
+
+function selectMonth({ year, month }) {
+  currentYear.value = year
+  currentMonth.value = month
+}
+
+// 禁用状态计算
+const isCurrentMonth = computed(() => {
+  const now = new Date()
+  return currentYear.value === now.getFullYear() && currentMonth.value === now.getMonth() + 1
+})
+
+const isMinMonth = computed(() => {
+  const minDate = new Date()
+  minDate.setMonth(minDate.getMonth() - 5)
+  return currentYear.value === minDate.getFullYear() && currentMonth.value === minDate.getMonth() + 1
+})
 
 // === 数据加载 ===
 
@@ -326,9 +387,22 @@ onMounted(() => {
       <div class="time-card active" @click="thisMonth">
         <div class="time-card-label">本月</div>
         <div class="time-card-value">
-          <el-button text class="card-arrow" @click.stop="prevMonth"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
-          {{ monthInfo.label }}
-          <el-button text class="card-arrow" @click.stop="nextMonth"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
+          <el-button text class="card-arrow" :disabled="isMinMonth" @click.stop="prevMonth"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
+          <el-dropdown trigger="click" @command="selectMonth" @click.stop>
+            <span class="month-dropdown-text">{{ monthInfo.label }}</span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="m in availableMonths"
+                  :key="`${m.year}-${m.month}`"
+                  :command="{ year: m.year, month: m.month }"
+                >
+                  {{ m.label }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button text class="card-arrow" :disabled="isCurrentMonth" @click.stop="nextMonth"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
         </div>
         <div class="time-card-sub">共 {{ monthInfo.days }} 天</div>
       </div>
@@ -557,6 +631,13 @@ onMounted(() => {
 .card-arrow {
   padding: 4px 8px;
   color: #409eff !important;
+}
+.month-dropdown-text {
+  cursor: pointer;
+  padding: 0 4px;
+}
+.month-dropdown-text:hover {
+  color: var(--el-color-primary);
 }
 
 .big-tabs {
