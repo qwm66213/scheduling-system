@@ -12,11 +12,9 @@ use([CanvasRenderer, BarChart, GridComponent, TooltipComponent, TitleComponent, 
 
 const { selectedStoreId, getStoreId, isSuperAdmin } = useStore()
 
-const activeTab = ref('forecast')
+const activeTab = ref('actual')
 const forecastData = ref([])
 const actualData = ref([])
-const yearData = ref([])
-const yearActualData = ref([])
 const loading = ref(false)
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth() + 1)
@@ -54,17 +52,28 @@ const actualFormDinnerId = ref(null)
 
 // === 共用计算 ===
 
-function buildDataMap(dataList) {
+function buildDataMap(dataList, isActual = false) {
   const map = {}
-  for (const row of dataList) {
-    if (!map[row.date]) map[row.date] = {}
-    map[row.date][row.period] = row
+  if (isActual) {
+    // 实际营业额新格式：每日期一条记录，包含 lunch_revenue, dinner_revenue, total_revenue
+    for (const row of dataList) {
+      map[row.date] = {
+        lunch: { total_revenue: row.lunch_revenue || 0 },
+        dinner: { total_revenue: row.dinner_revenue || 0 }
+      }
+    }
+  } else {
+    // 预估营业额格式：每日期两条记录，用 period 区分
+    for (const row of dataList) {
+      if (!map[row.date]) map[row.date] = {}
+      map[row.date][row.period] = row
+    }
   }
   return map
 }
 
-const forecastMap = computed(() => buildDataMap(forecastData.value))
-const actualMap = computed(() => buildDataMap(actualData.value))
+const forecastMap = computed(() => buildDataMap(forecastData.value, false))
+const actualMap = computed(() => buildDataMap(actualData.value, true))
 
 const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
@@ -167,50 +176,54 @@ async function loadActualData() {
   } catch { actualData.value = [] }
 }
 
-async function loadYearData() {
-  const storeId = getStoreId()
-  const params1 = { start_date: `${currentYear.value}-01-01`, end_date: `${currentYear.value}-12-31`, version: 'forecast' }
-  const params2 = { start_date: `${currentYear.value}-01-01`, end_date: `${currentYear.value}-12-31`, version: 'actual' }
-  if (storeId) { params1.store_id = storeId; params2.store_id = storeId }
-  yearData.value = await getRevenue(params1)
-  yearActualData.value = await getRevenue(params2)
-}
+// === 月度图表（每日实收vs预估对比）===
 
-// === 年度图表 ===
+const monthChartOption = computed(() => {
+  // 获取当月所有日期
+  const daysInMonth = new Date(currentYear.value, currentMonth.value, 0).getDate()
+  const dates = []
+  for (let d = 1; d <= daysInMonth; d++) {
+    dates.push(`${currentYear.value}-${String(currentMonth.value).padStart(2, '0')}-${String(d).padStart(2, '0')}`)
+  }
 
-const yearChartOption = computed(() => {
-  const forecastTotals = new Array(12).fill(0)
-  const actualTotals = new Array(12).fill(0)
-  for (const row of yearData.value) {
-    const month = parseInt(row.date.split('-')[1], 10)
-    forecastTotals[month - 1] += row.total_revenue || 0
-  }
-  for (const row of yearActualData.value) {
-    const month = parseInt(row.date.split('-')[1], 10)
-    actualTotals[month - 1] += row.total_revenue || 0
-  }
+  // 每日预估和实收汇总
+  const forecastTotals = dates.map(date => {
+    const lunch = forecastData.value.find(r => r.date === date && r.period === 'lunch')
+    const dinner = forecastData.value.find(r => r.date === date && r.period === 'dinner')
+    return (lunch?.total_revenue || 0) + (dinner?.total_revenue || 0)
+  })
+
+  const actualTotals = dates.map(date => {
+    const row = actualData.value.find(r => r.date === date)
+    return row?.total_revenue || 0
+  })
+
+  // X轴显示日期（只显示日）
+  const dayLabels = dates.map(d => d.slice(8))
+
   return {
-    title: { text: `${currentYear.value}年月度营业额`, left: 'center', textStyle: { fontSize: 14, fontWeight: 600 } },
+    title: { text: `${currentYear.value}年${currentMonth.value}月每日营业额对比`, left: 'center', textStyle: { fontSize: 14, fontWeight: 600 } },
     tooltip: {
       trigger: 'axis',
       formatter: params => {
-        let s = params[0].name
+        const day = params[0].name
+        let s = `${currentMonth.value}月${day}日`
         for (const p of params) s += `<br/>${p.seriesName}：¥${p.value.toLocaleString()}`
         return s
       }
     },
     legend: { top: 28 },
-    grid: { left: 60, right: 20, top: 56, bottom: 26 },
-    xAxis: { type: 'category', data: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'], axisLabel: { fontSize: 11 } },
+    grid: { left: 50, right: 20, top: 56, bottom: 40 },
+    xAxis: { type: 'category', data: dayLabels, axisLabel: { fontSize: 10, interval: 0, rotate: 45 } },
     yAxis: { type: 'value', axisLabel: { formatter: v => v >= 10000 ? (v / 10000) + '万' : v } },
     series: [
       {
-        name: '预估', type: 'bar', data: forecastTotals, barWidth: '30%',
-        itemStyle: { borderRadius: [3, 3, 0, 0], color: '#e6a23c' }
-      },
-      {
         name: '实收', type: 'bar', data: actualTotals, barWidth: '30%',
         itemStyle: { borderRadius: [3, 3, 0, 0], color: '#409eff' }
+      },
+      {
+        name: '预估', type: 'bar', data: forecastTotals, barWidth: '30%',
+        itemStyle: { borderRadius: [3, 3, 0, 0], color: '#e6a23c' }
       }
     ]
   }
@@ -261,7 +274,7 @@ async function handleForecastSave() {
     else await saveRevenue(payload)
   }
   forecastDialogVisible.value = false
-  await Promise.all([loadForecastData(), loadYearData()])
+  await loadForecastData()
 }
 
 // === 实际弹窗 ===
@@ -292,15 +305,13 @@ const actualFormTotal = computed(() => (Number(actualFormLunch.value) || 0) + (N
 // === 生命周期 ===
 
 watch([currentYear, currentMonth, selectedStoreId], () => {
-  loadForecastData()
   loadActualData()
-  loadYearData()
+  loadForecastData()
 })
 
 onMounted(() => {
-  loadForecastData()
   loadActualData()
-  loadYearData()
+  loadForecastData()
 })
 </script>
 
@@ -324,11 +335,11 @@ onMounted(() => {
     </div>
 
     <div class="big-tabs">
-      <div class="big-tab" :class="{ active: activeTab === 'forecast' }" @click="activeTab = 'forecast'">
-        预估午晚市
-      </div>
       <div class="big-tab" :class="{ active: activeTab === 'actual' }" @click="activeTab = 'actual'">
         实际午晚市
+      </div>
+      <div class="big-tab" :class="{ active: activeTab === 'forecast' }" @click="activeTab = 'forecast'">
+        预估午晚市
       </div>
     </div>
 
@@ -380,9 +391,9 @@ onMounted(() => {
       </div>
     </template>
 
-    <!-- 年度柱状图 - 两个Tab共享 -->
+    <!-- 月度柱状图 - 两个Tab共享 -->
     <el-card shadow="hover" class="chart-card">
-      <v-chart :option="yearChartOption" autoresize style="height: 240px;" />
+      <v-chart :option="monthChartOption" autoresize style="height: 240px;" />
     </el-card>
 
     <!-- 预估录入弹窗 -->

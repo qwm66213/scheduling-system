@@ -156,7 +156,8 @@ async function fetchAllExternalData(storeId) {
 
 // 解析营业汇总数据，提取午晚市营业额
 function parseBusinessSummary(results, storeId, startDate, endDate) {
-  const data = [];
+  // 使用Map按日期聚合数据
+  const dateMap = new Map();
   console.log('[Revenue] parseBusinessSummary: results count:', results.length, 'storeId:', storeId, 'startDate:', startDate, 'endDate:', endDate);
 
   // 记录跳过原因统计
@@ -200,6 +201,12 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
       continue;
     }
 
+    // 初始化该日期的数据
+    if (!dateMap.has(date)) {
+      dateMap.set(date, { date, lunch_revenue: 0, dinner_revenue: 0 });
+    }
+    const dateData = dateMap.get(date);
+
     // 从市别明细数组获取午市和晚市营业额
     const marketDetails = item.content.市别明细 || [];
     for (const market of marketDetails) {
@@ -207,14 +214,26 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
       const marketName = market.市别 || '';
 
       // 根据市别名称判断：午市或晚市
-      const period = marketName.includes('午') ? 'lunch' : (marketName.includes('晚') ? 'dinner' : 'lunch');
-
-      data.push({
-        date: date,
-        period: period,
-        total_revenue: Number(revenue.toFixed(2))
-      });
+      if (marketName.includes('午')) {
+        dateData.lunch_revenue += Number(revenue);
+      } else if (marketName.includes('晚')) {
+        dateData.dinner_revenue += Number(revenue);
+      } else {
+        // 默认归入午市
+        dateData.lunch_revenue += Number(revenue);
+      }
     }
+  }
+
+  // 转换为数组并计算total_revenue
+  const data = [];
+  for (const dateData of dateMap.values()) {
+    data.push({
+      date: dateData.date,
+      lunch_revenue: Number(dateData.lunch_revenue.toFixed(2)),
+      dinner_revenue: Number(dateData.dinner_revenue.toFixed(2)),
+      total_revenue: Number((dateData.lunch_revenue + dateData.dinner_revenue).toFixed(2))
+    });
   }
 
   console.log(`[Revenue] parseBusinessSummary done: ${data.length} items. Skipped: noGroup=${skippedNoGroup}, noContent=${skippedNoContent}, storeIdMismatch=${skippedStoreId}, noDate=${skippedNoDate}, dateRange=${skippedDateRange}`);
