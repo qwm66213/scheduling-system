@@ -27,28 +27,6 @@ const EXTERNAL_API = {
 // 所有门店ID列表
 const STORE_IDS = [3, 4, 5, 7, 8, 9, 13, 15, 16, 18, 19];
 
-/**
- * 根据日期范围计算 app_created_at 和 app_updated_at 筛选值
- * 通用公式：
- *   app_created_at >= 上月最后一天 16:00:00 UTC
- *   app_updated_at <= 本月最后一天 16:00:00 UTC
- * @param {string} startDate - 开始日期，格式 '2026-05-01'
- * @param {string} endDate - 结束日期，格式 '2026-05-31'
- * @returns {object} - { createdAtGte, updatedAtLte }
- */
-function calculateDateFilter(startDate, endDate) {
-  // 计算 app_created_at 的起始时间（startDate 前一天 16:00:00 UTC）
-  const startDateObj = new Date(startDate + 'T00:00:00+00:00');
-  startDateObj.setUTCDate(startDateObj.getUTCDate() - 1);
-  const createdAtGte = startDateObj.toISOString().replace(/\.\d{3}Z$/, '+00:00').replace(/T\d{2}:\d{2}:\d{2}/, 'T16:00:00');
-
-  // 计算 app_updated_at 的结束时间（endDate 当天 16:00:00 UTC）
-  const updatedAtLte = endDate + 'T16:00:00+00:00';
-
-  console.log('[Revenue] Date filter calculated:', { startDate, endDate, createdAtGte, updatedAtLte });
-  return { createdAtGte, updatedAtLte };
-}
-
 // 修复API返回的乱码字符串（GBK编码被当作UTF-8读取的问题）
 function fixGarbledText(str) {
   if (!str || typeof str !== 'string') return str;
@@ -77,6 +55,7 @@ function fixGarbledText(str) {
 router.use(authMiddleware);
 
 // 调用新API获取所有数据（游标分页）
+// 使用"统计日期"字段筛选，入参简单、数据精确
 // @param {string|null} storeId - 门店ID，null表示全部门店
 // @param {string} startDate - 开始日期，格式 '2026-05-01'
 // @param {string} endDate - 结束日期，格式 '2026-05-31'
@@ -85,9 +64,6 @@ async function fetchAllExternalData(storeId, startDate, endDate) {
   let cursor = '';
   let hasMore = true;
   let pageCount = 0;
-
-  // 计算日期筛选入参
-  const { createdAtGte, updatedAtLte } = calculateDateFilter(startDate, endDate);
 
   while (hasMore) {
     pageCount++;
@@ -103,14 +79,14 @@ async function fetchAllExternalData(storeId, startDate, endDate) {
         value: 'business_summary'
       },
       {
-        field: 'app_created_at',
+        field: '统计日期',
         operator: 'gte',
-        value: createdAtGte
+        value: startDate
       },
       {
-        field: 'app_updated_at',
+        field: '统计日期',
         operator: 'lte',
-        value: updatedAtLte
+        value: endDate
       }
     ]];
 
