@@ -18,6 +18,21 @@ const STORES = {
   19: '930长阳店'
 }
 
+// 门店缩写映射：ID -> 单字缩写
+const STORE_ABBREVS = {
+  3: '殷',
+  4: '长',
+  5: '国',
+  7: '宜',
+  8: '江',
+  9: '浦',
+  13: '金',
+  15: '凉',
+  16: '中',
+  18: '柳',
+  19: '阳'
+}
+
 // 门店ID列表（用于下拉选择，开头添加"全部"选项）
 const STORE_ID_LIST = [ALL_STORES, ...Object.keys(STORES).map(Number).sort((a, b) => a - b)]
 
@@ -69,6 +84,7 @@ export function useStore() {
 
   return {
     STORES,
+    STORE_ABBREVS,
     ALL_STORES,
     STORE_ID_LIST,
     selectedStoreId,

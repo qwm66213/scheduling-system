@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getSchedule, batchSaveSchedule, getStaff } from '../utils/api'
+import { getSchedule, batchSaveSchedule } from '../utils/api'
 import { useStore } from '../composables/useStore'
 
-const { STORES, STORE_ID_LIST, selectedStoreId, getStoreId } = useStore()
+const { STORES, STORE_ABBREVS, STORE_ID_LIST, selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const activeTab = ref('后厨')
@@ -15,8 +15,12 @@ const dropdownVisible = ref(false)
 const dropdownX = ref(0)
 const dropdownY = ref(0)
 const dropdownTarget = ref(null)
+const dropdownMode = ref('status') // 'status' 或 'store'
 
 const weekDays = ['一', '二', '三', '四', '五', '六', '日']
+
+// 借调门店列表（排除"全部"选项）
+const SECONDMENT_STORE_IDS = Object.keys(STORES).map(Number).sort((a, b) => a - b)
 
 const STATUS_OPTIONS = [
   { value: 'check', label: '√', desc: '出勤' },
@@ -88,13 +92,13 @@ const yearInfo = computed(() => {
 
 const filteredStaff = computed(() => {
   const rank = activeTab.value === '后厨' ? backRank : frontRank
-  const list = staffList.value.filter(r => r.business_line === activeTab.value && r.employment_status === '在职')
+  const list = staffList.value.filter(r => r.business_line === activeTab.value)
   list.sort((a, b) => (rank[a.position] ?? 999) - (rank[b.position] ?? 999))
   return list
 })
 
-const backStaffCount = computed(() => staffList.value.filter(r => r.business_line === '后厨' && r.employment_status === '在职').length)
-const frontStaffCount = computed(() => staffList.value.filter(r => r.business_line === '前厅' && r.employment_status === '在职').length)
+const backStaffCount = computed(() => staffList.value.filter(r => r.business_line === '后厨').length)
+const frontStaffCount = computed(() => staffList.value.filter(r => r.business_line === '前厅').length)
 
 // 14个时段列
 const dayColumns = computed(() => {
@@ -134,7 +138,10 @@ function getCellDisplay(empId, date, period) {
   const status = getCellStatus(empId, date, period)
   if (!status) return ''
   if (status === 'second') {
-    return getCellStore(empId, date, period) || '借'
+    const storeName = getCellStore(empId, date, period)
+    // 根据门店名称查找对应的门店ID，再获取缩写
+    const storeId = Object.keys(STORES).find(id => STORES[id] === storeName)
+    return storeId ? STORE_ABBREVS[storeId] || '借' : '借'
   }
   const opt = STATUS_OPTIONS.find(o => o.value === status)
   return opt ? opt.label : ''
@@ -166,11 +173,14 @@ function onCellClick(empId, date, period, event) {
     dropdownX.value = rect.left
   }
   dropdownTarget.value = { empId, date, period }
+  dropdownMode.value = 'status'
   dropdownVisible.value = true
 }
 
 async function selectStatus(status) {
   const t = dropdownTarget.value
+  // 从 staffList 中获取员工信息
+  const emp = staffList.value.find(e => e.id === t.empId)
   updateCell(t.empId, t.date, t.period, status)
   dropdownVisible.value = false
   await batchSaveSchedule([{
@@ -178,23 +188,38 @@ async function selectStatus(status) {
     date: t.date,
     period: t.period,
     status,
-    secondment_store: ''
+    secondment_store: '',
+    name: emp?.name || '',
+    position: emp?.position || '',
+    business_line: emp?.business_line || '',
+    store_id: getStoreId()  // 传递门店ID
   }])
   await loadAttendance()
 }
 
-async function selectStore(store) {
+async function selectStore(storeId) {
   const t = dropdownTarget.value
-  updateCell(t.empId, t.date, t.period, 'second', store)
+  // 从 staffList 中获取员工信息
+  const emp = staffList.value.find(e => e.id === t.empId)
+  const storeName = STORES[storeId] || ''  // 转换为门店名称
+  updateCell(t.empId, t.date, t.period, 'second', storeName)
   dropdownVisible.value = false
   await batchSaveSchedule([{
     employee_id: t.empId,
     date: t.date,
     period: t.period,
     status: 'second',
-    secondment_store: store
+    secondment_store: storeName,
+    name: emp?.name || '',
+    position: emp?.position || '',
+    business_line: emp?.business_line || '',
+    store_id: getStoreId()  // 传递门店ID
   }])
   await loadAttendance()
+}
+
+function showStoreDropdown() {
+  dropdownMode.value = 'store'
 }
 
 function closeDropdown() {
@@ -209,30 +234,38 @@ function prevWeek() { weekOffset.value-- }
 function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
 function thisWeek() { weekOffset.value = 0 }
 
-async function loadStaff() {
-  const params = {}
-  const storeId = getStoreId()
-  if (storeId) params.store_id = storeId
-  const data = await getStaff(params)
-  staffList.value = data
-}
-
 async function loadAttendance() {
   const dates = weekDates.value
   const params = { start_date: dates[0], end_date: dates[6] }
   const storeId = getStoreId()
   if (storeId) params.store_id = storeId
   const data = await getSchedule(params)
+
+  // 从返回数据中提取员工列表（先清空）
+  const newStaffList = []
+  const staffSet = new Set()
   const map = {}
   for (const r of data) {
+    // 收集员工信息
+    if (!staffSet.has(r.employee_id)) {
+      staffSet.add(r.employee_id)
+      newStaffList.push({
+        id: r.employee_id,
+        name: r.name,
+        position: r.position,
+        business_line: r.business_line
+      })
+    }
     const key = getCellKey(r.employee_id, r.date, r.period)
     map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
   }
 
-  // 当前周或下一周：自动将所有在职员工出勤状态设为√
+  // 更新员工列表
+  staffList.value = newStaffList
+
+  // 当前周或下一周：自动将所有员工出勤状态设为√
   if (isCurrentOrNextWeek.value && Object.keys(map).length === 0) {
     for (const emp of staffList.value) {
-      if (emp.employment_status !== '在职') continue
       for (let i = 0; i < weekDates.value.length; i++) {
         for (const period of ['am', 'pm']) {
           const key = getCellKey(emp.id, weekDates.value[i], period)
@@ -250,7 +283,7 @@ async function loadAttendance() {
 onMounted(async () => {
   loading.value = true
   try {
-    await loadStaff()
+    staffList.value = [] // 清空员工列表
     await loadAttendance()
   } finally {
     loading.value = false
@@ -274,7 +307,6 @@ watch(weekOffset, async () => {
 watch(selectedStoreId, async () => {
   loading.value = true
   try {
-    await loadStaff()
     await loadAttendance()
   } finally {
     loading.value = false
@@ -334,7 +366,7 @@ watch(selectedStoreId, async () => {
         <!-- 数据行 -->
         <template v-for="(emp, empIdx) in filteredStaff" :key="emp.id">
           <div class="g-cell g-name" :style="{ gridRow: 3 + empIdx, gridColumn: 1 }">
-            {{ emp.name }}<el-tag v-if="emp.secondment_status" type="danger" size="small" style="margin-left:2px;vertical-align:middle;">借</el-tag>
+            {{ emp.name }}
           </div>
           <div class="g-cell g-pos" :style="{ gridRow: 3 + empIdx, gridColumn: 2 }">{{ emp.position }}</div>
           <div v-for="(c, idx) in dayColumns" :key="emp.id+'-'+c.date+'-'+c.period"
@@ -342,12 +374,13 @@ watch(selectedStoreId, async () => {
             :style="{ gridRow: 3 + empIdx, gridColumn: 3 + idx }"
             @click="onCellClick(emp.id, c.date, c.period, $event)">
             <span class="cell-text">{{ getCellDisplay(emp.id, c.date, c.period) }}</span>
+            <span class="cell-arrow">▼</span>
           </div>
         </template>
 
         <!-- 空数据 -->
         <div v-if="filteredStaff.length === 0" class="g-cell g-empty" :style="{ gridRow: 3, gridColumn: '1 / -1' }">
-          暂无在职员工
+          暂无员工数据
         </div>
       </div>
     </div>
@@ -359,19 +392,31 @@ watch(selectedStoreId, async () => {
         :style="{ left: dropdownX + 'px', top: dropdownY + 'px' }"
         @click.stop
       >
-        <div class="dropdown-section">
-          <div class="dropdown-item" v-for="opt in STATUS_OPTIONS" :key="opt.value" @click="selectStatus(opt.value)">
-            <span class="dropdown-symbol">{{ opt.label }}</span>
-            <span class="dropdown-desc">{{ opt.desc }}</span>
+        <!-- 状态选择 -->
+        <template v-if="dropdownMode === 'status'">
+          <div class="dropdown-section">
+            <div class="dropdown-item" v-for="opt in STATUS_OPTIONS" :key="opt.value" @click="selectStatus(opt.value)">
+              <span class="dropdown-symbol">{{ opt.label }}</span>
+              <span class="dropdown-desc">{{ opt.desc }}</span>
+            </div>
           </div>
-        </div>
-        <div class="dropdown-divider"></div>
-        <div class="dropdown-section">
-          <div class="dropdown-title">借调门店</div>
-          <div class="store-list">
-            <div class="store-item" v-for="id in STORE_ID_LIST" :key="id" @click="selectStore(id)">{{ STORES[id] }}</div>
+          <div class="dropdown-divider"></div>
+          <div class="dropdown-section">
+            <div class="dropdown-item" @click="showStoreDropdown">
+              <span class="dropdown-symbol">借</span>
+              <span class="dropdown-desc">借调</span>
+            </div>
           </div>
-        </div>
+        </template>
+        <!-- 门店选择 -->
+        <template v-else-if="dropdownMode === 'store'">
+          <div class="dropdown-section">
+            <div class="dropdown-title">选择借调门店</div>
+            <div class="store-list">
+              <div class="store-item" v-for="id in SECONDMENT_STORE_IDS" :key="id" @click="selectStore(id)">{{ STORE_ABBREVS[id] }}</div>
+            </div>
+          </div>
+        </template>
       </div>
     </Teleport>
   </div>
@@ -536,18 +581,28 @@ watch(selectedStoreId, async () => {
 .g-data {
   cursor: pointer;
   user-select: none;
-  padding: 5px 0;
+  padding: 5px 4px;
   min-height: 40px;
   transition: background 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 2px;
 }
 .g-data:hover { background: #f5f7fa; }
 .cell-text {
   font-size: 15px;
   font-weight: 600;
   color: #303133;
+}
+.cell-arrow {
+  font-size: 10px;
+  color: #c0c4cc;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.g-data:hover .cell-arrow {
+  opacity: 1;
 }
 .g-empty {
   text-align: center;
