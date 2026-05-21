@@ -38,6 +38,30 @@ const STORE_ID_TO_NAME = {
   19: '930长阳店'
 };
 
+// 岗位排序规则
+const backPositions = ['厨师长', '副厨', '第一炉灶', '第二炉灶', '第三炉灶', '第四炉灶', '第五炉灶', '第六炉灶', '冷菜主管', '冷菜', '蒸箱', '点心师傅', '切配主管', '切配', '海鲜师傅', '打荷', '洗碗洗菜', '寒暑假工', '小时工'];
+const frontPositions = ['店长', '前厅经理', '前厅主管', '金牌师傅', '收银', '迎宾', '服务员', '外卖', '保洁', '小时工'];
+const backRank = Object.fromEntries(backPositions.map((p, i) => [p, i]));
+const frontRank = Object.fromEntries(frontPositions.map((p, i) => [p, i]));
+
+// 排序函数：先按前厅/后厨分组，再按岗位排序
+function sortStaff(list) {
+  return list.sort((a, b) => {
+    const aWorkName = a.workName || '';
+    const bWorkName = b.workName || '';
+
+    // 前厅排在前面，后厨排在后面
+    if (aWorkName === '前厅' && bWorkName !== '前厅') return -1;
+    if (aWorkName !== '前厅' && bWorkName === '前厅') return 1;
+
+    // 同一组内按岗位排序
+    const rank = aWorkName === '前厅' ? frontRank : backRank;
+    const aRank = rank[a.position] ?? 999;
+    const bRank = rank[b.position] ?? 999;
+    return aRank - bRank;
+  });
+}
+
 // 调用 OpenAPI 获取员工数据
 async function fetchStaffData(storeId) {
   const storeName = STORE_ID_TO_NAME[storeId];
@@ -115,7 +139,7 @@ router.get('/', async (req, res) => {
   try {
     const storeId = req.query.store_id || req.storeId;
     const page = Number(req.query.page) || 1;
-    const pageSize = Number(req.query.pageSize) || 20;
+    const pageSize = Number(req.query.pageSize) || 15;
 
     console.log('[Staff] Fetching from OpenAPI, storeId:', storeId, 'page:', page, 'pageSize:', pageSize);
 
@@ -133,11 +157,14 @@ router.get('/', async (req, res) => {
         if (data.results) {
           allStaff.push(...data.results.map(item => ({
             id: item.id,
+            employeeCode: item.fields?.员工编码 || '',
             store_id: storeIdVal,
             store: item.fields?.所属门店 || STORE_ID_TO_NAME[storeIdVal] || '',
             name: item.fields?.姓名 || '',
             position: item.fields?.岗位 || '',
-            workName: item.fields?.工作名 || ''
+            workName: item.fields?.工作名 || '',
+            hireDate: item.fields?.入职日期 || null,
+            lastWorkDate: item.fields?.最后工作日 || null
           })));
         }
       }
@@ -147,14 +174,20 @@ router.get('/', async (req, res) => {
       if (data.results) {
         allStaff = data.results.map(item => ({
           id: item.id,
+          employeeCode: item.fields?.员工编码 || '',
           store_id: storeId,
           store: item.fields?.所属门店 || '',
           name: item.fields?.姓名 || '',
           position: item.fields?.岗位 || '',
-          workName: item.fields?.工作名 || ''
+          workName: item.fields?.工作名 || '',
+          hireDate: item.fields?.入职日期 || null,
+          lastWorkDate: item.fields?.最后工作日 || null
         }));
       }
     }
+
+    // 排序：先按前厅/后厨分组，再按岗位排序
+    sortStaff(allStaff);
 
     // 分页处理
     const total = allStaff.length;
@@ -172,7 +205,7 @@ router.get('/', async (req, res) => {
     }));
   } catch (err) {
     console.error('[Staff] Error:', err.message);
-    res.json(response(1, '获取成功', { data: [], total: 0, page: 1, pageSize: 20 }));
+    res.json(response(1, '获取成功', { data: [], total: 0, page: 1, pageSize: 15 }));
   }
 });
 

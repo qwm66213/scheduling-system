@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-import { getSchedule, batchSaveSchedule } from '../utils/api'
+import { getSchedule, batchSaveSchedule, getStaff } from '../utils/api'
 import { useStore } from '../composables/useStore'
 
 const { STORES, STORE_ABBREVS, STORE_ID_LIST, selectedStoreId, getStoreId } = useStore()
@@ -8,6 +8,7 @@ const { STORES, STORE_ABBREVS, STORE_ID_LIST, selectedStoreId, getStoreId } = us
 const loading = ref(false)
 const activeTab = ref('后厨')
 const weekOffset = ref(0)
+const allStaffList = ref([])  // 从员工API获取的所有员工
 const staffList = ref([])
 const scheduleMap = ref({})
 
@@ -234,6 +235,47 @@ function prevWeek() { weekOffset.value-- }
 function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
 function thisWeek() { weekOffset.value = 0 }
 
+// 加载员工数据（根据周日期筛选在职员工）
+async function loadStaffData() {
+  const dates = weekDates.value
+  const weekStart = dates[0]
+  const weekEnd = dates[6]
+
+  const params = { pageSize: 999 }  // 获取所有员工，不分页
+  const storeId = getStoreId()
+  if (storeId) params.store_id = storeId
+
+  const result = await getStaff(params)
+  let staffData = []
+
+  // 兼容旧格式（数组）和新格式（分页对象）
+  if (Array.isArray(result)) {
+    staffData = result
+  } else {
+    staffData = result.data || []
+  }
+
+  // 筛选员工：
+  // 1. 入职日期 <= 周结束日期（已入职）
+  // 2. 最后工作日为空 OR 最后工作日 >= 周开始日期（未离职或本周/之后离职）
+  allStaffList.value = staffData.filter(emp => {
+    const hireDate = emp.hireDate
+    const lastWorkDate = emp.lastWorkDate
+
+    // 入职判断：入职日期 <= 周结束日期
+    if (hireDate && hireDate > weekEnd) {
+      return false
+    }
+
+    // 离职判断：最后工作日 < 周开始日期
+    if (lastWorkDate && lastWorkDate < weekStart) {
+      return false
+    }
+
+    return true
+  })
+}
+
 async function loadAttendance() {
   const dates = weekDates.value
   const params = { start_date: dates[0], end_date: dates[6] }
@@ -241,27 +283,20 @@ async function loadAttendance() {
   if (storeId) params.store_id = storeId
   const data = await getSchedule(params)
 
-  // 从返回数据中提取员工列表（先清空）
-  const newStaffList = []
-  const staffSet = new Set()
+  // 构建排班映射
   const map = {}
   for (const r of data) {
-    // 收集员工信息
-    if (!staffSet.has(r.employee_id)) {
-      staffSet.add(r.employee_id)
-      newStaffList.push({
-        id: r.employee_id,
-        name: r.name,
-        position: r.position,
-        business_line: r.business_line
-      })
-    }
     const key = getCellKey(r.employee_id, r.date, r.period)
     map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
   }
 
-  // 更新员工列表
-  staffList.value = newStaffList
+  // 使用 allStaffList 作为员工列表
+  staffList.value = allStaffList.value.map(emp => ({
+    id: emp.employeeCode || emp.id,
+    name: emp.name,
+    position: emp.position,
+    business_line: emp.workName
+  }))
 
   // 当前周或下一周：自动将所有员工出勤状态设为√
   if (isCurrentOrNextWeek.value && Object.keys(map).length === 0) {
@@ -283,7 +318,7 @@ async function loadAttendance() {
 onMounted(async () => {
   loading.value = true
   try {
-    staffList.value = [] // 清空员工列表
+    await loadStaffData()
     await loadAttendance()
   } finally {
     loading.value = false
@@ -298,6 +333,7 @@ onUnmounted(() => {
 watch(weekOffset, async () => {
   loading.value = true
   try {
+    await loadStaffData()
     await loadAttendance()
   } finally {
     loading.value = false
@@ -307,6 +343,7 @@ watch(weekOffset, async () => {
 watch(selectedStoreId, async () => {
   loading.value = true
   try {
+    await loadStaffData()
     await loadAttendance()
   } finally {
     loading.value = false
