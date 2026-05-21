@@ -11,7 +11,7 @@ const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
 const { STORES, ALL_STORES, STORE_ID_LIST, selectedStoreId, isSuperAdmin, initStore, setStoreId, getStoreName } = useStore()
 
 const allMenuItems = [
-  { path: '/', icon: 'DataAnalysis', title: '数据看板' },
+  // { path: '/', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
   { path: '/schedule', icon: 'Calendar', title: '预排班' },
   { path: '/attendance', icon: 'Calendar', title: '考勤记录' },
