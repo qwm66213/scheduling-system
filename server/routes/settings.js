@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db-mysql');
+const https = require('https');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -16,37 +16,115 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
-async function getStandard(key, storeId = 1) {
-  const [rows] = await pool.execute(
-    'SELECT rule_value FROM scheduling_rules WHERE rule_key = ? AND store_id = ?',
-    [key, storeId]
-  );
-  if (!rows.length) return null;
-  const val = rows[0].rule_value;
-  try { return JSON.parse(val); } catch { return Number(val) || 0; }
+// OpenAPI 配置
+const EFFICIENCY_API = {
+  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  userId: '{{Emoo-User-Id}}',
+  tableKey: 'tb_f733867740388'
+};
+
+// 门店ID到门店名称的映射
+const STORE_ID_TO_NAME = {
+  3: '930殷高店',
+  4: '930长江西路店',
+  5: '930国和店',
+  7: '930宜川店',
+  8: '930小馆拾光里店',
+  9: '930浦锦路店',
+  13: '930金沙江店',
+  15: '930车站南路店',
+  16: '930中华路店',
+  18: '930柳营路店',
+  19: '930长阳店'
+};
+
+// 默认值
+const DEFAULT_VALUES = {
+  front_efficiency: 2800,
+  back_efficiency: 2200
+};
+
+// 调用 OpenAPI
+function callOpenAPI(path, postData, method = 'POST') {
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: 'app.emoosearch.com',
+      path: path,
+      method: method,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Authorization': `Bearer ${EFFICIENCY_API.token}`,
+        'Emoo-User-Id': EFFICIENCY_API.userId
+      }
+    };
+
+    const req = https.request(options, res => {
+      const chunks = [];
+      res.on('data', d => chunks.push(d));
+      res.on('end', () => {
+        try {
+          const buffer = Buffer.concat(chunks);
+          const body = buffer.toString('utf8');
+          const json = JSON.parse(body);
+          if (json.code === 200 && json.data) {
+            resolve(json.data);
+          } else {
+            console.error('[Settings] API error:', json.code, json.message);
+            resolve(null);
+          }
+        } catch (e) {
+          console.error('[Settings] Parse error:', e.message);
+          resolve(null);
+        }
+      });
+    });
+    req.on('error', e => reject(e));
+    req.write(JSON.stringify(postData));
+    req.end();
+  });
 }
 
-async function setStandard(key, value, storeId = 1) {
-  const jsonStr = JSON.stringify(value);
-  await pool.execute(
-    'INSERT INTO scheduling_rules (store_id, rule_key, rule_value, description) VALUES (?, ?, ?, "") ON DUPLICATE KEY UPDATE rule_value = ?',
-    [storeId, key, jsonStr, jsonStr]
-  );
+// 查询指定门店的记录
+async function findExistingRecord(storeName) {
+  const title = `人效标准_${storeName}`;
+  const postData = {
+    table_key: EFFICIENCY_API.tableKey,
+    page_size: 1,
+    current_page: 1,
+    filters: [`标题:eq:${title}`]
+  };
+  const data = await callOpenAPI('/open-api/v1/data/records/list', postData);
+  if (data && data.results && data.results.length > 0) {
+    return data.results[0];
+  }
+  return null;
 }
 
 // GET /api/settings
 router.get('/', async (req, res) => {
   try {
     const storeId = req.storeId;
+
+    // 管理员查看全部门店时返回默认值
     if (!storeId) {
-      return res.json(response(1, '获取成功', { front_efficiency: 2800, back_efficiency: 2200 }));
+      return res.json(response(1, '获取成功', DEFAULT_VALUES));
     }
-    const frontStandard = await getStandard('front_standard', storeId) || { efficiency: 2800 };
-    const backStandard = await getStandard('back_standard', storeId) || { efficiency: 2200 };
-    res.json(response(1, '获取成功', {
-      front_efficiency: frontStandard.efficiency || 2800,
-      back_efficiency: backStandard.efficiency || 2200
-    }));
+
+    const storeName = STORE_ID_TO_NAME[storeId];
+    if (!storeName) {
+      return res.json(response(1, '获取成功', DEFAULT_VALUES));
+    }
+
+    const existing = await findExistingRecord(storeName);
+
+    if (existing) {
+      res.json(response(1, '获取成功', {
+        front_efficiency: existing.fields['前厅人效标准'] || DEFAULT_VALUES.front_efficiency,
+        back_efficiency: existing.fields['后厨人效标准'] || DEFAULT_VALUES.back_efficiency
+      }));
+    } else {
+      res.json(response(1, '获取成功', DEFAULT_VALUES));
+    }
   } catch (err) {
     console.error('[Settings] Error:', err.message);
     res.status(500).json(response(0, err.message));
@@ -60,18 +138,56 @@ router.put('/', async (req, res) => {
     if (!storeId) {
       return res.status(400).json(response(0, '缺少门店ID'));
     }
+
+    const storeName = STORE_ID_TO_NAME[storeId];
+    if (!storeName) {
+      return res.status(400).json(response(0, '无效的门店ID'));
+    }
+
     const { front_efficiency, back_efficiency } = req.body;
-    if (front_efficiency != null) {
-      const frontStandard = await getStandard('front_standard', storeId) || {};
-      frontStandard.efficiency = Number(front_efficiency);
-      await setStandard('front_standard', frontStandard, storeId);
+    if (front_efficiency == null && back_efficiency == null) {
+      return res.status(400).json(response(0, '缺少人效标准值'));
     }
-    if (back_efficiency != null) {
-      const backStandard = await getStandard('back_standard', storeId) || {};
-      backStandard.efficiency = Number(back_efficiency);
-      await setStandard('back_standard', backStandard, storeId);
+
+    const existing = await findExistingRecord(storeName);
+    const frontValue = Number(front_efficiency) || DEFAULT_VALUES.front_efficiency;
+    const backValue = Number(back_efficiency) || DEFAULT_VALUES.back_efficiency;
+
+    if (existing) {
+      // 更新
+      const postData = {
+        table_key: EFFICIENCY_API.tableKey,
+        record_key: existing.record_key,
+        fields: {
+          前厅人效标准: frontValue,
+          后厨人效标准: backValue
+        }
+      };
+      const result = await callOpenAPI('/open-api/v1/data/records', postData, 'PUT');
+      if (result) {
+        res.json(response(1, '保存成功'));
+      } else {
+        res.status(500).json(response(0, '保存失败'));
+      }
+    } else {
+      // 初始化新增
+      const title = `人效标准_${storeName}`;
+      const postData = {
+        table_key: EFFICIENCY_API.tableKey,
+        records: [{
+          标题: title,
+          所属门店: storeName,
+          前厅人效标准: frontValue,
+          后厨人效标准: backValue
+        }]
+      };
+      const result = await callOpenAPI('/open-api/v1/data/records', postData, 'POST');
+      if (result) {
+        res.json(response(1, '保存成功'));
+      } else {
+        res.status(500).json(response(0, '保存失败'));
+      }
     }
-    res.json(response(1, '保存成功'));
   } catch (err) {
     console.error('[Settings] Error:', err.message);
     res.status(500).json(response(0, err.message));

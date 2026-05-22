@@ -91,8 +91,8 @@ export const getAttendanceSummary = (params) => api.get('/attendance/summary', {
 export const getDashboardSummary = (params) => api.get('/dashboard/summary', { params }).then(r => r.data)
 
 // Settings
-export const getSettings = () => api.get('/settings').then(r => r.data)
-export const saveSettings = (data) => api.put('/settings', data).then(r => r.data)
+export const getSettings = (params) => api.get('/settings', { params }).then(r => r.data)
+export const saveSettings = (data, params) => api.put('/settings', data, { params }).then(r => r.data)
 
 // Daily Summary
 export const getDailySummary = (params) => api.get('/daily-summary', { params }).then(r => r.data)

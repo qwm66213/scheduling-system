@@ -1,7 +1,10 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { getSettings, saveSettings } from '../utils/api'
 import { ElMessage } from 'element-plus'
+import { useStore } from '../composables/useStore'
+
+const { selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -11,7 +14,10 @@ const backEfficiency = ref(2200)
 async function loadData() {
   loading.value = true
   try {
-    const data = await getSettings()
+    const params = {}
+    const storeId = getStoreId()
+    if (storeId) params.store_id = storeId
+    const data = await getSettings(params)
     frontEfficiency.value = data.front_efficiency
     backEfficiency.value = data.back_efficiency
   } finally {
@@ -22,10 +28,13 @@ async function loadData() {
 async function handleSave() {
   saving.value = true
   try {
+    const storeId = getStoreId()
+    const params = {}
+    if (storeId) params.store_id = storeId
     await saveSettings({
       front_efficiency: frontEfficiency.value,
       back_efficiency: backEfficiency.value
-    })
+    }, params)
     ElMessage.success('保存成功')
   } catch {
     ElMessage.error('保存失败')
