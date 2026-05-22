@@ -20,9 +20,6 @@ const dropdownMode = ref('status') // 'status' 或 'store'
 
 const weekDays = ['一', '二', '三', '四', '五', '六', '日']
 
-// 借调门店列表（排除"全部"选项）
-const SECONDMENT_STORE_IDS = Object.keys(STORES).map(Number).sort((a, b) => a - b)
-
 const STATUS_OPTIONS = [
   { value: 'check', label: '√', desc: '出勤' },
   { value: 'leave', label: 'O', desc: '请假/休息' },
@@ -38,7 +35,7 @@ function isHourlyWorker(empId) {
 }
 
 const backPositions = ['厨师长', '副厨', '第一炉灶', '第二炉灶', '第三炉灶', '第四炉灶', '第五炉灶', '第六炉灶', '冷菜主管', '冷菜', '蒸箱', '点心师傅', '切配主管', '切配', '海鲜师傅', '打荷', '洗碗洗菜', '寒暑假工', '小时工']
-const frontPositions = ['店长', '前厅经理', '前厅主管', '收银', '金牌师傅', '迎宾', '服务员', '外卖', '保洁', '小时工']
+const frontPositions = ['店长', '前厅经理', '前厅主管', '金牌师傅', '收银', '迎宾', '服务员', '外卖', '保洁', '小时工']
 const backRank = Object.fromEntries(backPositions.map((p, i) => [p, i]))
 const frontRank = Object.fromEntries(frontPositions.map((p, i) => [p, i]))
 
@@ -112,6 +109,15 @@ const nonHourlyStaff = computed(() => {
 // 小时工列表
 const hourlyStaff = computed(() => {
   return filteredStaff.value.filter(emp => emp.position === '小时工')
+})
+
+// 借调门店列表（排除当前门店）
+const secondmentStoreIds = computed(() => {
+  const currentStoreId = getStoreId()
+  return Object.keys(STORES)
+    .map(Number)
+    .filter(id => id !== currentStoreId)
+    .sort((a, b) => a - b)
 })
 
 const backStaffCount = computed(() => staffList.value.filter(r => r.business_line === '后厨').length)
@@ -310,13 +316,33 @@ function closeDropdown() {
   dropdownVisible.value = false
 }
 
-const isNextWeek = computed(() => weekOffset.value === 1)
-const isBeyondNextWeek = computed(() => weekOffset.value > 1)
-const isCurrentOrNextWeek = computed(() => weekOffset.value >= 0 && weekOffset.value <= 1)
+// 周选择边界判断
+const isMinWeek = computed(() => weekOffset.value <= -6)
+const isMaxWeek = computed(() => weekOffset.value >= 1)
 
-function prevWeek() { weekOffset.value-- }
+// 可选周列表（下周到6周前）
+const availableWeeks = computed(() => {
+  const weeks = []
+  const today = new Date()
+  for (let offset = 1; offset >= -6; offset--) {
+    const monday = new Date(today)
+    monday.setDate(today.getDate() - ((today.getDay() + 6) % 7) + offset * 7)
+    const weekStart = monday.toISOString().slice(0, 10)
+    const weekEnd = new Date(monday)
+    weekEnd.setDate(monday.getDate() + 6)
+    weeks.push({
+      offset,
+      label: `${weekStart.slice(5)} ~ ${weekEnd.toISOString().slice(5, 10)}`,
+      isCurrent: offset === 0
+    })
+  }
+  return weeks
+})
+
+function prevWeek() { if (weekOffset.value > -6) weekOffset.value-- }
 function nextWeek() { if (weekOffset.value < 1) weekOffset.value++ }
 function thisWeek() { weekOffset.value = 0 }
+function selectWeek(offset) { weekOffset.value = offset }
 
 // 加载员工数据（根据周日期筛选在职员工）
 async function loadStaffData() {
@@ -388,20 +414,6 @@ async function loadAttendance() {
     business_line: emp.workName
   }))
 
-  // 当前周或下一周：自动将所有员工出勤状态设为√
-  if (isCurrentOrNextWeek.value && Object.keys(map).length === 0) {
-    for (const emp of staffList.value) {
-      for (let i = 0; i < weekDates.value.length; i++) {
-        for (const period of ['am', 'pm']) {
-          const key = getCellKey(emp.id, weekDates.value[i], period)
-          if (!map[key]) {
-            map[key] = { employee_id: emp.id, date: weekDates.value[i], period, status: 'check', secondment_store: '' }
-          }
-        }
-      }
-    }
-  }
-
   scheduleMap.value = map
 }
 
@@ -449,12 +461,26 @@ watch(selectedStoreId, async () => {
         <div class="time-card-value">{{ todayInfo.date }}</div>
         <div class="time-card-sub">{{ todayInfo.weekday }}</div>
       </div>
-      <div class="time-card active" @click="thisWeek">
+      <div class="time-card active">
         <div class="time-card-label">本周</div>
         <div class="time-card-value">
-          <el-button text class="card-arrow" @click.stop="prevWeek"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
-          {{ weekInfo.range }}
-          <el-button text class="card-arrow" :disabled="isNextWeek" @click.stop="nextWeek"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
+          <el-button text class="card-arrow" :disabled="isMinWeek" @click.stop="prevWeek"><el-icon :size="18"><ArrowLeft /></el-icon></el-button>
+          <el-dropdown trigger="click" @command="selectWeek" @click.stop>
+            <span class="week-dropdown-text">{{ weekInfo.range }}</span>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  v-for="w in availableWeeks"
+                  :key="w.offset"
+                  :command="w.offset"
+                  :class="{ 'is-active': w.offset === weekOffset }"
+                >
+                  {{ w.label }}{{ w.isCurrent ? ' (本周)' : '' }}
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+          <el-button text class="card-arrow" :disabled="isMaxWeek" @click.stop="nextWeek"><el-icon :size="18"><ArrowRight /></el-icon></el-button>
         </div>
         <div class="time-card-sub">第 {{ weekInfo.weekNum }} 周</div>
       </div>
@@ -522,7 +548,6 @@ watch(selectedStoreId, async () => {
               :style="{ gridRow: 3 + empIdx, gridColumn: 3 + idx }"
               @click="onCellClick(emp.id, c.date, c.period, $event)">
               <span class="cell-text">{{ getCellDisplay(emp.id, c.date, c.period) }}</span>
-              <span class="cell-arrow">▼</span>
             </div>
           </template>
         </template>
@@ -562,7 +587,7 @@ watch(selectedStoreId, async () => {
           <div class="dropdown-section">
             <div class="dropdown-title">选择借调门店</div>
             <div class="store-list">
-              <div class="store-item" v-for="id in SECONDMENT_STORE_IDS" :key="id" @click="selectStore(id)">{{ STORE_ABBREVS[id] }}</div>
+              <div class="store-item" v-for="id in secondmentStoreIds" :key="id" @click="selectStore(id)">{{ STORE_ABBREVS[id] }}</div>
             </div>
           </div>
         </template>
@@ -627,6 +652,13 @@ watch(selectedStoreId, async () => {
 .card-arrow {
   padding: 4px 8px;
   color: #409eff !important;
+}
+.week-dropdown-text {
+  cursor: pointer;
+  padding: 0 4px;
+}
+.week-dropdown-text:hover {
+  color: var(--el-color-primary);
 }
 .big-tabs {
   display: flex;
@@ -743,15 +775,6 @@ watch(selectedStoreId, async () => {
   font-size: 15px;
   font-weight: 600;
   color: #303133;
-}
-.cell-arrow {
-  font-size: 10px;
-  color: #c0c4cc;
-  opacity: 0;
-  transition: opacity 0.15s;
-}
-.g-data:hover .cell-arrow {
-  opacity: 1;
 }
 .g-empty {
   text-align: center;
