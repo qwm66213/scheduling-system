@@ -155,8 +155,7 @@ router.get('/', async (req, res) => {
         date: date,
         name: f.姓名 || '',
         position: f.岗位 || '',
-        business_line: f.工作名 || '',
-        secondment_store: f.借调门店 || ''
+        business_line: f.工作名 || ''
       };
 
       // 上午记录
@@ -164,7 +163,8 @@ router.get('/', async (req, res) => {
         result.push({
           ...baseRecord,
           period: 'am',
-          status: convertStatus(f.上午出勤状态)
+          status: convertStatus(f.上午出勤状态),
+          secondment_store: f.上午借调门店 || ''
         });
       }
 
@@ -173,7 +173,8 @@ router.get('/', async (req, res) => {
         result.push({
           ...baseRecord,
           period: 'pm',
-          status: convertStatus(f.下午出勤状态)
+          status: convertStatus(f.下午出勤状态),
+          secondment_store: f.下午借调门店 || ''
         });
       }
     }
@@ -281,8 +282,7 @@ router.post('/batch', async (req, res) => {
         姓名: r.name,
         岗位: r.position,
         工作名: r.business_line,
-        小时工工时: 0,
-        借调门店: r.secondment_store
+        小时工工时: 0
       };
 
       if (existing) {
@@ -290,6 +290,8 @@ router.post('/batch', async (req, res) => {
         const existingFields = existing.fields || {};
         recordData.上午出勤状态 = r.am_status ? toApiStatus(r.am_status, r.am_secondment_store) : (existingFields.上午出勤状态 || '');
         recordData.下午出勤状态 = r.pm_status ? toApiStatus(r.pm_status, r.pm_secondment_store) : (existingFields.下午出勤状态 || '');
+        recordData.上午借调门店 = r.am_secondment_store || (existingFields.上午借调门店 || '');
+        recordData.下午借调门店 = r.pm_secondment_store || (existingFields.下午借调门店 || '');
 
         // 更新记录
         const result = await callOpenAPI('/open-api/v1/data/records', {
@@ -302,6 +304,8 @@ router.post('/batch', async (req, res) => {
         // 不存在：新增
         recordData.上午出勤状态 = r.am_status ? toApiStatus(r.am_status, r.am_secondment_store) : '';
         recordData.下午出勤状态 = r.pm_status ? toApiStatus(r.pm_status, r.pm_secondment_store) : '';
+        recordData.上午借调门店 = r.am_secondment_store || '';
+        recordData.下午借调门店 = r.pm_secondment_store || '';
 
         const result = await callOpenAPI('/open-api/v1/data/records', {
           table_key: SCHEDULE_API.tableKey,
