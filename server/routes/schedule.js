@@ -158,24 +158,40 @@ router.get('/', async (req, res) => {
         business_line: f.工作名 || ''
       };
 
-      // 上午记录
-      if (f.上午出勤状态) {
-        result.push({
-          ...baseRecord,
-          period: 'am',
-          status: convertStatus(f.上午出勤状态),
-          secondment_store: f.上午借调门店 || ''
-        });
-      }
+      // 判断是否为小时工
+      const isHourly = f.岗位 === '小时工';
 
-      // 下午记录
-      if (f.下午出勤状态) {
-        result.push({
-          ...baseRecord,
-          period: 'pm',
-          status: convertStatus(f.下午出勤状态),
-          secondment_store: f.下午借调门店 || ''
-        });
+      if (isHourly) {
+        // 小时工：返回工时数据
+        if (f.小时工工时) {
+          result.push({
+            ...baseRecord,
+            period: 'day',
+            status: 'hours',
+            hours: f.小时工工时
+          });
+        }
+      } else {
+        // 非小时工：返回出勤状态
+        // 上午记录
+        if (f.上午出勤状态) {
+          result.push({
+            ...baseRecord,
+            period: 'am',
+            status: convertStatus(f.上午出勤状态),
+            secondment_store: f.上午借调门店 || ''
+          });
+        }
+
+        // 下午记录
+        if (f.下午出勤状态) {
+          result.push({
+            ...baseRecord,
+            period: 'pm',
+            status: convertStatus(f.下午出勤状态),
+            secondment_store: f.下午借调门店 || ''
+          });
+        }
       }
     }
 
@@ -251,15 +267,24 @@ router.post('/batch', async (req, res) => {
           business_line: r.business_line || '',
           secondment_store: r.secondment_store || '',
           am_status: '',
-          pm_status: ''
+          pm_status: '',
+          hours: 0,  // 小时工工时
+          isHourly: r.status === 'hours'  // 是否为小时工
         };
       }
-      if (r.period === 'am') {
-        grouped[key].am_status = r.status;
-        grouped[key].am_secondment_store = r.secondment_store || '';
-      } else if (r.period === 'pm') {
-        grouped[key].pm_status = r.status;
-        grouped[key].pm_secondment_store = r.secondment_store || '';
+      if (r.status === 'hours') {
+        // 小时工：记录工时
+        grouped[key].hours = r.hours || 0;
+        grouped[key].isHourly = true;
+      } else {
+        // 非小时工：记录出勤状态
+        if (r.period === 'am') {
+          grouped[key].am_status = r.status;
+          grouped[key].am_secondment_store = r.secondment_store || '';
+        } else if (r.period === 'pm') {
+          grouped[key].pm_status = r.status;
+          grouped[key].pm_secondment_store = r.secondment_store || '';
+        }
       }
     }
 
@@ -286,26 +311,49 @@ router.post('/batch', async (req, res) => {
       };
 
       if (existing) {
-        // 存在：保留原有状态，只更新传入的时段
-        const existingFields = existing.fields || {};
-        recordData.上午出勤状态 = r.am_status ? toApiStatus(r.am_status, r.am_secondment_store) : (existingFields.上午出勤状态 || '');
-        recordData.下午出勤状态 = r.pm_status ? toApiStatus(r.pm_status, r.pm_secondment_store) : (existingFields.下午出勤状态 || '');
-        recordData.上午借调门店 = r.am_secondment_store || (existingFields.上午借调门店 || '');
-        recordData.下午借调门店 = r.pm_secondment_store || (existingFields.下午借调门店 || '');
+        // 存在：只更新传入的字段，使用正确的 PUT 入参格式
+        const updateFields = {};
+
+        if (r.isHourly) {
+          // 小时工：只更新小时工工时
+          updateFields.小时工工时 = r.hours;
+        } else {
+          // 非小时工：更新出勤状态和借调门店
+          if (r.am_status) {
+            updateFields.上午出勤状态 = toApiStatus(r.am_status, r.am_secondment_store);
+            updateFields.上午借调门店 = r.am_secondment_store || '';
+          }
+
+          if (r.pm_status) {
+            updateFields.下午出勤状态 = toApiStatus(r.pm_status, r.pm_secondment_store);
+            updateFields.下午借调门店 = r.pm_secondment_store || '';
+          }
+        }
 
         // 更新记录
         const result = await callOpenAPI('/open-api/v1/data/records', {
           table_key: SCHEDULE_API.tableKey,
-          id: existing.id,
-          record: recordData
+          record_key: existing.record_key,
+          fields: updateFields
         }, 'PUT');
         if (result) successCount++;
       } else {
         // 不存在：新增
-        recordData.上午出勤状态 = r.am_status ? toApiStatus(r.am_status, r.am_secondment_store) : '';
-        recordData.下午出勤状态 = r.pm_status ? toApiStatus(r.pm_status, r.pm_secondment_store) : '';
-        recordData.上午借调门店 = r.am_secondment_store || '';
-        recordData.下午借调门店 = r.pm_secondment_store || '';
+        if (r.isHourly) {
+          // 小时工：只设置小时工工时
+          recordData.小时工工时 = r.hours;
+          recordData.上午出勤状态 = '';
+          recordData.下午出勤状态 = '';
+          recordData.上午借调门店 = '';
+          recordData.下午借调门店 = '';
+        } else {
+          // 非小时工：设置出勤状态和借调门店
+          recordData.小时工工时 = 0;
+          recordData.上午出勤状态 = r.am_status ? toApiStatus(r.am_status, r.am_secondment_store) : '';
+          recordData.下午出勤状态 = r.pm_status ? toApiStatus(r.pm_status, r.pm_secondment_store) : '';
+          recordData.上午借调门店 = r.am_secondment_store || '';
+          recordData.下午借调门店 = r.pm_secondment_store || '';
+        }
 
         const result = await callOpenAPI('/open-api/v1/data/records', {
           table_key: SCHEDULE_API.tableKey,
@@ -316,13 +364,13 @@ router.post('/batch', async (req, res) => {
     }
 
     if (successCount > 0) {
-      res.json(response(1, `保存成功，共处理 ${successCount} 条记录`));
+      res.json(response(1, '成功'));
     } else {
-      res.status(500).json(response(0, '保存失败'));
+      res.status(500).json(response(0, '失败'));
     }
   } catch (err) {
     console.error('[Schedule] Error:', err.message);
-    res.status(500).json(response(0, err.message));
+    res.status(500).json(response(0, '失败'));
   }
 });
 

@@ -6,7 +6,7 @@ import { useStore } from '../composables/useStore'
 const { STORES, STORE_ABBREVS, STORE_ID_LIST, selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
-const activeTab = ref('后厨')
+const activeTab = ref('前厅')  // 默认选中左侧tab
 const weekOffset = ref(0)
 const allStaffList = ref([])  // 从员工API获取的所有员工
 const staffList = ref([])
@@ -30,6 +30,12 @@ const STATUS_OPTIONS = [
   { value: 'save', label: '存', desc: '存休' },
   { value: 'annual', label: '年', desc: '休年假' }
 ]
+
+// 判断是否为小时工
+function isHourlyWorker(empId) {
+  const emp = allStaffList.value.find(e => e.employeeCode === empId || e.id === empId)
+  return emp?.position === '小时工'
+}
 
 const backPositions = ['厨师长', '副厨', '第一炉灶', '第二炉灶', '第三炉灶', '第四炉灶', '第五炉灶', '第六炉灶', '冷菜主管', '冷菜', '蒸箱', '点心师傅', '切配主管', '切配', '海鲜师傅', '打荷', '洗碗洗菜', '寒暑假工', '小时工']
 const frontPositions = ['店长', '前厅经理', '前厅主管', '收银', '金牌师傅', '迎宾', '服务员', '外卖', '保洁', '小时工']
@@ -98,10 +104,21 @@ const filteredStaff = computed(() => {
   return list
 })
 
+// 非小时工列表
+const nonHourlyStaff = computed(() => {
+  return filteredStaff.value.filter(emp => emp.position !== '小时工')
+})
+
+// 小时工列表
+const hourlyStaff = computed(() => {
+  return filteredStaff.value.filter(emp => emp.position === '小时工')
+})
+
 const backStaffCount = computed(() => staffList.value.filter(r => r.business_line === '后厨').length)
 const frontStaffCount = computed(() => staffList.value.filter(r => r.business_line === '前厅').length)
 
 // 14个时段列
+// 非小时工：每天两列（上午/下午）
 const dayColumns = computed(() => {
   const cols = []
   for (let i = 0; i < weekDates.value.length; i++) {
@@ -111,14 +128,24 @@ const dayColumns = computed(() => {
   return cols
 })
 
+// 小时工：每天一列（全天）
+const hourlyDayColumns = computed(() => {
+  return weekDates.value.map((d, i) => ({ date: d, dayIndex: i }))
+})
+
 // 7个日期表头
 const dayHeaders = computed(() => {
   return weekDates.value.map((d, i) => ({ date: d, dayIndex: i }))
 })
 
-// Grid template: 2固定列 + 14固定宽度列（充满内容区）
+// Grid template: 非小时工 2固定列 + 14列
 const gridTemplate = computed(() => {
   return '75px 75px repeat(14, 93px)'
+})
+
+// 小时工 Grid template: 2固定列 + 7列
+const hourlyGridTemplate = computed(() => {
+  return '75px 75px repeat(7, 186px)'
 })
 
 function getCellKey(empId, date, period) {
@@ -155,7 +182,63 @@ function updateCell(empId, date, period, status, store = '') {
   scheduleMap.value = map
 }
 
+// 获取小时工工时显示值（全天）
+function getHourlyHours(empId, date) {
+  const key = `${empId}_${date}_day`
+  const record = scheduleMap.value[key]
+  return record?.hours || ''
+}
+
+// 小时工输入工时（全天）
+async function onHourlyChange(emp, date, event) {
+  const oldValue = getHourlyHours(emp.id, date)  // 保存原值
+  let value = parseFloat(event.target.value)
+
+  // 空值或NaN：恢复原值，不保存
+  if (isNaN(value)) {
+    event.target.value = oldValue
+    return
+  }
+
+  // 验证是否为0.5的倍数
+  if (value !== 0 && (value * 2) % 1 !== 0) {
+    alert('请输入0.5倍的工时')
+    event.target.value = oldValue
+    return
+  }
+
+  // 验证范围
+  if (value > 8) {
+    alert('工时最大为8')
+    event.target.value = oldValue
+    return
+  }
+
+  if (value < 0) {
+    alert('工时不能为负数')
+    event.target.value = oldValue
+    return
+  }
+
+  // 验证通过，保存数据
+  await batchSaveSchedule([{
+    employee_id: emp.employeeCode || emp.id,
+    date: date,
+    period: 'day',  // 全天标识
+    status: 'hours',
+    hours: value,
+    name: emp.name || '',
+    position: emp.position || '',
+    business_line: emp.business_line || '',
+    store_id: getStoreId()
+  }])
+  await loadAttendance()
+}
+
 function onCellClick(empId, date, period, event) {
+  // 小时工不显示下拉菜单
+  if (isHourlyWorker(empId)) return
+
   event.stopPropagation()
   const cell = event.currentTarget
   const rect = cell.getBoundingClientRect()
@@ -241,7 +324,7 @@ async function loadStaffData() {
   const weekStart = dates[0]
   const weekEnd = dates[6]
 
-  const params = { pageSize: 999 }  // 获取所有员工，不分页
+  const params = { pageSize: 100 }  // 最大值100
   const storeId = getStoreId()
   if (storeId) params.store_id = storeId
 
@@ -287,7 +370,14 @@ async function loadAttendance() {
   const map = {}
   for (const r of data) {
     const key = getCellKey(r.employee_id, r.date, r.period)
-    map[key] = { employee_id: r.employee_id, date: r.date, period: r.period, status: r.status, secondment_store: r.secondment_store || '' }
+    map[key] = {
+      employee_id: r.employee_id,
+      date: r.date,
+      period: r.period,
+      status: r.status,
+      secondment_store: r.secondment_store || '',
+      hours: r.hours || 0  // 小时工工时
+    }
   }
 
   // 使用 allStaffList 作为员工列表
@@ -406,13 +496,35 @@ watch(selectedStoreId, async () => {
             {{ emp.name }}
           </div>
           <div class="g-cell g-pos" :style="{ gridRow: 3 + empIdx, gridColumn: 2 }">{{ emp.position }}</div>
-          <div v-for="(c, idx) in dayColumns" :key="emp.id+'-'+c.date+'-'+c.period"
-            class="g-cell g-data"
-            :style="{ gridRow: 3 + empIdx, gridColumn: 3 + idx }"
-            @click="onCellClick(emp.id, c.date, c.period, $event)">
-            <span class="cell-text">{{ getCellDisplay(emp.id, c.date, c.period) }}</span>
-            <span class="cell-arrow">▼</span>
-          </div>
+
+          <!-- 小时工：每天一个合并单元格 -->
+          <template v-if="emp.position === '小时工'">
+            <div v-for="(h, idx) in dayHeaders" :key="emp.id+'-'+h.date"
+              class="g-cell g-data"
+              :style="{ gridRow: 3 + empIdx, gridColumn: (3 + idx * 2) + ' / span 2' }">
+              <input
+                type="number"
+                class="hours-cell-input"
+                :value="getHourlyHours(emp.id, h.date)"
+                min="0"
+                max="8"
+                step="0.5"
+                @click.stop
+                @change="onHourlyChange(emp, h.date, $event)"
+              />
+            </div>
+          </template>
+
+          <!-- 非小时工：每天两个单元格（上午/下午） -->
+          <template v-else>
+            <div v-for="(c, idx) in dayColumns" :key="emp.id+'-'+c.date+'-'+c.period"
+              class="g-cell g-data"
+              :style="{ gridRow: 3 + empIdx, gridColumn: 3 + idx }"
+              @click="onCellClick(emp.id, c.date, c.period, $event)">
+              <span class="cell-text">{{ getCellDisplay(emp.id, c.date, c.period) }}</span>
+              <span class="cell-arrow">▼</span>
+            </div>
+          </template>
         </template>
 
         <!-- 空数据 -->
@@ -706,4 +818,34 @@ watch(selectedStoreId, async () => {
   transition: all 0.15s;
 }
 .store-item:hover { background: #ecf5ff; color: #409eff; }
+
+/* 小时工表格 */
+.hourly-grid {
+  margin-top: 16px;
+}
+
+/* 小时工输入框 */
+.hours-cell-input {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  outline: none;
+  cursor: pointer;
+}
+.hours-cell-input:focus {
+  background: #ecf5ff;
+}
+.hours-cell-input::-webkit-inner-spin-button,
+.hours-cell-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.hours-cell-input[type=number] {
+  -moz-appearance: textfield;
+}
 </style>
