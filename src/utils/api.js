@@ -2,7 +2,7 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: '/api',
-  timeout: 10000
+  timeout: 15000
 })
 
 // 请求拦截器：添加 Token
@@ -92,7 +92,7 @@ export const getDashboardSummary = (params) => api.get('/dashboard/summary', { p
 
 // Settings
 export const getSettings = (params) => api.get('/settings', { params }).then(r => r.data)
-export const saveSettings = (data, params) => api.put('/settings', data, { params }).then(r => r.data)
+export const saveSettings = (data, params) => api.put('/settings', data, { params })
 
 // Daily Summary
 export const getDailySummary = (params) => api.get('/daily-summary', { params }).then(r => r.data)

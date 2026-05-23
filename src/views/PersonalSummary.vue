@@ -149,7 +149,8 @@ watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
           </el-table-column>
           <el-table-column label="奖金" min-width="80" align="right">
             <template #default="{ row }">
-              <span :style="{ color: row.bonus > 0 ? '#67c23a' : row.bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.bonus) }}</span>
+              <span v-if="row.bonus === null">-</span>
+              <span v-else :style="{ color: row.bonus > 0 ? '#67c23a' : row.bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.bonus) }}</span>
             </template>
           </el-table-column>
         </el-table>
@@ -164,7 +165,8 @@ watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
           </el-table-column>
           <el-table-column label="奖金" min-width="80" align="right">
             <template #default="{ row }">
-              <span :style="{ color: row.bonus > 0 ? '#67c23a' : row.bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.bonus) }}</span>
+              <span v-if="row.bonus === null">-</span>
+              <span v-else :style="{ color: row.bonus > 0 ? '#67c23a' : row.bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.bonus) }}</span>
             </template>
           </el-table-column>
         </el-table>

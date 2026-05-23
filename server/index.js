@@ -48,28 +48,10 @@ app.get(/^\/(?!api\/).*/, (req, res) => {
 });
 
 async function start() {
-  await ensureAttendanceTable();
   app.listen(PORT, () => {
     console.log(`Server running at http://localhost:${PORT}`);
     scheduleDailySummary();
   });
-}
-
-async function ensureAttendanceTable() {
-  const pool = require('./db-mysql');
-  await pool.execute(`CREATE TABLE IF NOT EXISTS attendance_record (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    employee_id INT NOT NULL,
-    schedule_date DATE NOT NULL,
-    period VARCHAR(10) NOT NULL COMMENT '班次时段: am/pm',
-    status VARCHAR(20) NOT NULL DEFAULT '' COMMENT '出勤状态: check/leave/absent/save/annual/second',
-    secondment_store VARCHAR(50) DEFAULT NULL COMMENT '借调门店',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_employee_date (employee_id, schedule_date),
-    INDEX idx_date (schedule_date),
-    UNIQUE KEY unique_attendance (employee_id, schedule_date, period)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT='考勤记录表'`);
 }
 
 function scheduleDailySummary() {
@@ -90,43 +72,11 @@ function scheduleDailySummary() {
 }
 
 async function generateYesterday() {
-  try {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = yesterday.toISOString().slice(0, 10);
-    const pool = require('./db-mysql');
-    // 确保表存在
-    await pool.execute(`CREATE TABLE IF NOT EXISTS daily_summary (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      summary_date DATE NOT NULL UNIQUE,
-      actual_revenue DECIMAL(12,2) DEFAULT 0,
-      front_check_count DECIMAL(6,1) DEFAULT 0,
-      front_bonus DECIMAL(12,2) DEFAULT 0,
-      back_check_count DECIMAL(6,1) DEFAULT 0,
-      back_bonus DECIMAL(12,2) DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-    await pool.execute(`CREATE TABLE IF NOT EXISTS personal_summary (
-      id INT PRIMARY KEY AUTO_INCREMENT,
-      summary_date DATE NOT NULL,
-      employee_name VARCHAR(50) NOT NULL,
-      front_check_count DECIMAL(6,1) DEFAULT 0,
-      back_check_count DECIMAL(6,1) DEFAULT 0,
-      bonus DECIMAL(12,2) DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      INDEX idx_date (summary_date)
-    )`);
-    // 检查是否已存在
-    const [rows] = await pool.execute('SELECT id FROM daily_summary WHERE summary_date = ?', [dateStr]);
-    if (rows.length === 0) {
-      const axios = require('axios');
-      await axios.post(`http://localhost:${PORT}/api/daily-summary/generate`, { date: dateStr });
-      await axios.post(`http://localhost:${PORT}/api/personal-summary/generate`, { date: dateStr });
-      console.log(`[Summary] Generated daily+personal data for ${dateStr}`);
-    }
-  } catch (err) {
-    console.error('[DailySummary] Generate failed:', err.message);
-  }
+  // 数据改为实时计算，不再存储，仅记录日志
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  const dateStr = yesterday.toISOString().slice(0, 10);
+  console.log(`[Summary] Daily data for ${dateStr} will be calculated on-demand (real-time)`);
 }
 
 const WEBHOOK_URL = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a065dffd-6817-4e2c-89c2-98d13b916f0f';

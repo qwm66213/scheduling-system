@@ -119,13 +119,15 @@ watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
         <el-table-column prop="front_check_count" label="前厅出勤人数" min-width="110" align="center" />
         <el-table-column prop="front_bonus" label="前厅奖金数" min-width="100" align="right">
           <template #default="{ row }">
-            <span :style="{ color: row.front_bonus > 0 ? '#67c23a' : row.front_bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.front_bonus) }}</span>
+            <span v-if="row.front_bonus === null">-</span>
+            <span v-else :style="{ color: row.front_bonus > 0 ? '#67c23a' : row.front_bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.front_bonus) }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="back_check_count" label="后厨出勤人数" min-width="110" align="center" />
         <el-table-column prop="back_bonus" label="后厨奖金数" min-width="100" align="right">
           <template #default="{ row }">
-            <span :style="{ color: row.back_bonus > 0 ? '#67c23a' : row.back_bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.back_bonus) }}</span>
+            <span v-if="row.back_bonus === null">-</span>
+            <span v-else :style="{ color: row.back_bonus > 0 ? '#67c23a' : row.back_bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.back_bonus) }}</span>
           </template>
         </el-table-column>
       </el-table>

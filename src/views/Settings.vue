@@ -10,6 +10,8 @@ const loading = ref(false)
 const saving = ref(false)
 const frontEfficiency = ref(2800)
 const backEfficiency = ref(2200)
+const frontBonusRatio = ref(10)
+const backBonusRatio = ref(12)
 
 async function loadData() {
   loading.value = true
@@ -20,6 +22,8 @@ async function loadData() {
     const data = await getSettings(params)
     frontEfficiency.value = data.front_efficiency
     backEfficiency.value = data.back_efficiency
+    frontBonusRatio.value = parseInt(data.front_bonus_ratio) || 10
+    backBonusRatio.value = parseInt(data.back_bonus_ratio) || 12
   } finally {
     loading.value = false
   }
@@ -31,10 +35,18 @@ async function handleSave() {
     const storeId = getStoreId()
     const params = {}
     if (storeId) params.store_id = storeId
-    await saveSettings({
+    const result = await saveSettings({
       front_efficiency: frontEfficiency.value,
-      back_efficiency: backEfficiency.value
+      back_efficiency: backEfficiency.value,
+      front_bonus_ratio: frontBonusRatio.value + '%',
+      back_bonus_ratio: backBonusRatio.value + '%'
     }, params)
+    console.log('saveSettings result:', result)
+    // 后端返回 status: 0 表示校验失败
+    if (result && result.status === 0) {
+      ElMessage.warning(result.errmsg || '保存失败')
+      return
+    }
     ElMessage.success('保存成功')
   } catch {
     ElMessage.error('保存失败')
@@ -60,6 +72,14 @@ onMounted(() => {
         <div class="setting-row">
           <div class="setting-label">后厨人效标准</div>
           <el-input-number v-model="backEfficiency" :min="0" :step="100" :controls="false" size="large" style="width: 200px;" />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">前厅奖金比例(%)</div>
+          <el-input-number v-model="frontBonusRatio" :precision="0" :controls="false" size="large" style="width: 200px;" />
+        </div>
+        <div class="setting-row">
+          <div class="setting-label">后厨奖金比例(%)</div>
+          <el-input-number v-model="backBonusRatio" :precision="0" :controls="false" size="large" style="width: 200px;" />
         </div>
       </div>
       <div class="settings-footer">
