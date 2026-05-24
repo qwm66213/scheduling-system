@@ -65,16 +65,6 @@ async function toggleStatus(row) {
   }
 }
 
-async function deleteUser(row) {
-  try {
-    await api.delete(`/auth/users/${row.id}`)
-    ElMessage.success('删除成功')
-    loadUsers()
-  } catch {
-    ElMessage.error('删除失败')
-  }
-}
-
 function getStoreName(storeId) {
   return STORES[storeId] || '-'
 }
@@ -118,7 +108,6 @@ onMounted(() => {
               <el-button link :type="row.is_active ? 'warning' : 'success'" size="small" @click="toggleStatus(row)">
                 {{ row.is_active ? '禁用' : '启用' }}
               </el-button>
-              <el-button link type="danger" size="small" @click="deleteUser(row)">删除</el-button>
             </template>
           </template>
         </el-table-column>

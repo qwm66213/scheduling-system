@@ -1,9 +1,18 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db-mysql');
-const { hashPassword, comparePassword, generateToken, validatePasswordStrength, refreshAccessToken, verifyToken } = require('../utils/auth');
-const { loginRateLimit } = require('../middleware/loginRateLimit');
-const { loginLogMiddleware, getLoginLogs } = require('../middleware/loginLog');
+const {
+  findUserByUsername,
+  findUserByRecordKey,
+  findAllUsers,
+  createUser,
+  updateUser,
+  isUsernameExists,
+  comparePassword,
+  hashPassword
+} = require('../utils/auth-openapi');
+const { generateToken, validatePasswordStrength, verifyToken } = require('../utils/auth');
+const { loginRateLimit } = require('../middleware/loginRateLimit-openapi');
+const { loginLogMiddleware, getLoginLogs } = require('../middleware/loginLog-openapi');
 const authMiddleware = require('../middleware/auth');
 
 /**
@@ -27,6 +36,7 @@ router.get('/verify-token', authMiddleware, async (req, res) => {
     res.json(response(1, 'Token有效', {
       user: {
         id: req.user.id,
+        record_key: req.user.record_key,
         username: req.user.username,
         role: req.user.role,
         real_name: req.user.real_name,
@@ -54,25 +64,21 @@ router.post('/refresh-token', async (req, res) => {
       return res.status(401).json(response(0, '刷新令牌无效或已过期'));
     }
 
-    // 从数据库查询用户信息
-    const [rows] = await pool.execute(
-      'SELECT id, username, role, is_active FROM users WHERE id = ?',
-      [decoded.id]
-    );
+    // 从 OpenAPI 查询用户信息
+    const user = await findUserByRecordKey(decoded.record_key || decoded.id) || await findUserByUsername(decoded.id);
 
-    if (rows.length === 0) {
+    if (!user) {
       return res.status(401).json(response(0, '用户不存在'));
     }
 
-    const user = rows[0];
-
-    if (user.is_active !== 1) {
+    if (!user.is_active) {
       return res.status(403).json(response(0, '账号已被禁用'));
     }
 
     // 生成新的 Token
     const { accessToken, refreshToken: newRefreshToken } = generateToken({
       id: user.id,
+      record_key: user.record_key,
       username: user.username,
       role: user.role
     });
@@ -97,21 +103,16 @@ router.post('/login', loginRateLimit, loginLogMiddleware, async (req, res) => {
       return res.status(400).json(response(0, '用户名和密码不能为空'));
     }
 
-    // 查询用户
-    const [rows] = await pool.execute(
-      'SELECT id, username, password, role, real_name, store_id, is_active FROM users WHERE username = ?',
-      [username]
-    );
+    // 从 OpenAPI 查询用户
+    const user = await findUserByUsername(username);
 
     // 用户不存在
-    if (rows.length === 0) {
+    if (!user) {
       return res.status(401).json(response(0, '用户名或密码错误'));
     }
 
-    const user = rows[0];
-
     // 账号已禁用
-    if (user.is_active !== 1) {
+    if (!user.is_active) {
       return res.status(403).json(response(0, '账号已被禁用，请联系管理员'));
     }
 
@@ -124,6 +125,7 @@ router.post('/login', loginRateLimit, loginLogMiddleware, async (req, res) => {
     // 生成 Token
     const { accessToken, refreshToken } = generateToken({
       id: user.id,
+      record_key: user.record_key,
       username: user.username,
       role: user.role
     });
@@ -132,6 +134,7 @@ router.post('/login', loginRateLimit, loginLogMiddleware, async (req, res) => {
     res.json(response(1, '登录成功', {
       user: {
         id: user.id,
+        record_key: user.record_key,
         username: user.username,
         role: user.role,
         real_name: user.real_name,
@@ -149,10 +152,8 @@ router.post('/login', loginRateLimit, loginLogMiddleware, async (req, res) => {
 // 获取用户列表（需要 admin 权限）
 router.get('/users', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const [rows] = await pool.execute(
-      'SELECT id, username, real_name, role, store_id, is_active, created_at FROM users ORDER BY id'
-    );
-    res.json(response(1, '获取成功', rows));
+    const users = await findAllUsers();
+    res.json(response(1, '获取成功', users));
   } catch (err) {
     console.error('[GetUsers] Error:', err.message);
     res.status(500).json(response(0, '获取用户列表失败'));
@@ -190,23 +191,25 @@ router.post('/users', authMiddleware, requireAdmin, async (req, res) => {
     }
 
     // 检查用户名是否已存在
-    const [existing] = await pool.execute(
-      'SELECT id FROM users WHERE username = ?',
-      [username]
-    );
-    if (existing.length > 0) {
+    const exists = await isUsernameExists(username);
+    if (exists) {
       return res.status(400).json(response(0, '用户名已存在'));
     }
 
-    // 加密密码
-    const hashedPassword = await hashPassword(password);
-    const storeId = role === 'admin' ? null : Number(store_id);
+    // 创建用户
+    const result = await createUser({
+      username,
+      password,
+      role,
+      store_id: role === 'admin' ? null : Number(store_id),
+      real_name: real_name || username
+    });
 
-    const [result] = await pool.execute(
-      'INSERT INTO users (username, password, role, store_id, real_name, is_active) VALUES (?, ?, ?, ?, ?, 1)',
-      [username, hashedPassword, role, storeId, real_name || username]
-    );
-    res.json(response(1, '创建成功', { id: result.insertId }));
+    if (result) {
+      res.json(response(1, '创建成功', { id: result.record_key || result.id }));
+    } else {
+      res.status(500).json(response(0, '创建用户失败'));
+    }
   } catch (err) {
     console.error('[CreateUser] Error:', err.message);
     res.status(500).json(response(0, '创建用户失败'));
@@ -216,39 +219,29 @@ router.post('/users', authMiddleware, requireAdmin, async (req, res) => {
 // 更新用户（需要 admin 权限）
 router.put('/users/:id', authMiddleware, requireAdmin, async (req, res) => {
   try {
-    const { role, password, is_active, store_id } = req.body;
-    const userId = req.params.id;
+    const { role, password, is_active, store_id, real_name } = req.body;
+    const userIdentifier = req.params.id;
 
     // 检查用户是否存在
-    const [existing] = await pool.execute('SELECT id FROM users WHERE id = ?', [userId]);
-    if (existing.length === 0) {
+    const user = await findUserByRecordKey(userIdentifier) || await findUserByUsername(userIdentifier);
+    if (!user) {
       return res.status(404).json(response(0, '用户不存在'));
     }
 
-    let sql = 'UPDATE users SET role = ?';
-    const params = [role];
-
+    const updates = {};
+    if (role) updates.role = role;
     if (password) {
       const pwdCheck = validatePasswordStrength(password);
       if (!pwdCheck.valid) {
         return res.status(400).json(response(0, pwdCheck.error));
       }
-      const hashedPassword = await hashPassword(password);
-      sql += ', password = ?';
-      params.push(hashedPassword);
+      updates.password = password;
     }
-    if (is_active !== undefined) {
-      sql += ', is_active = ?';
-      params.push(is_active);
-    }
-    if (store_id !== undefined) {
-      sql += ', store_id = ?';
-      params.push(store_id);
-    }
-    sql += ' WHERE id = ?';
-    params.push(userId);
+    if (is_active !== undefined) updates.is_active = is_active;
+    if (store_id !== undefined) updates.store_id = store_id;
+    if (real_name) updates.real_name = real_name;
 
-    await pool.execute(sql, params);
+    await updateUser(user.record_key, updates);
     res.json(response(1, '更新成功'));
   } catch (err) {
     console.error('[UpdateUser] Error:', err.message);
@@ -256,32 +249,10 @@ router.put('/users/:id', authMiddleware, requireAdmin, async (req, res) => {
   }
 });
 
-// 删除用户（需要 admin 权限）
-router.delete('/users/:id', authMiddleware, requireAdmin, async (req, res) => {
-  try {
-    // 不允许删除自己
-    if (Number(req.params.id) === req.user.id) {
-      return res.status(400).json(response(0, '不能删除自己的账号'));
-    }
-
-    // 检查用户是否存在
-    const [existing] = await pool.execute('SELECT id FROM users WHERE id = ?', [req.params.id]);
-    if (existing.length === 0) {
-      return res.status(404).json(response(0, '用户不存在'));
-    }
-
-    await pool.execute('DELETE FROM users WHERE id = ?', [req.params.id]);
-    res.json(response(1, '删除成功'));
-  } catch (err) {
-    console.error('[DeleteUser] Error:', err.message);
-    res.status(500).json(response(0, '删除用户失败'));
-  }
-});
-
 // 修改密码（需要登录）
 router.post('/change-password', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userRecordKey = req.user.record_key;
     const { oldPassword, newPassword } = req.body;
 
     // 参数校验
@@ -299,26 +270,19 @@ router.post('/change-password', authMiddleware, async (req, res) => {
       return res.status(400).json(response(0, '新密码不能与旧密码相同'));
     }
 
-    // 验证旧密码
-    const [rows] = await pool.execute(
-      'SELECT password FROM users WHERE id = ?',
-      [userId]
-    );
-    if (rows.length === 0) {
+    // 从 OpenAPI 获取用户信息（包含密码哈希）
+    const user = await findUserByRecordKey(userRecordKey);
+    if (!user) {
       return res.status(404).json(response(0, '用户不存在'));
     }
 
-    const isValid = await comparePassword(oldPassword, rows[0].password);
+    const isValid = await comparePassword(oldPassword, user.password);
     if (!isValid) {
       return res.status(400).json(response(0, '旧密码错误'));
     }
 
     // 更新密码
-    const hashedPassword = await hashPassword(newPassword);
-    await pool.execute(
-      'UPDATE users SET password = ? WHERE id = ?',
-      [hashedPassword, userId]
-    );
+    await updateUser(userRecordKey, { password: newPassword });
 
     // 返回成功，提示需要重新登录
     res.json(response(1, '密码修改成功，请重新登录'));

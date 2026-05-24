@@ -1,5 +1,5 @@
-const pool = require('../db-mysql');
 const { verifyToken } = require('../utils/auth');
+const { findUserByRecordKey, findUserByUsername } = require('../utils/auth-openapi');
 
 /**
  * 认证中间件：验证 JWT Token 并注入用户信息
@@ -29,23 +29,23 @@ async function authMiddleware(req, res, next) {
       if (!decoded) {
         return res.status(401).json({ error: '登录已过期，请重新登录' });
       }
-      userId = decoded.id;
+      userId = decoded.record_key || decoded.id; // 支持新旧两种ID格式
     } else {
       // 兼容旧方式
       userId = legacyUserId;
     }
 
-    // 查询用户信息
-    const [rows] = await pool.execute(
-      'SELECT id, username, role, store_id, real_name FROM users WHERE id = ? AND is_active = 1',
-      [userId]
-    );
+    // 从 OpenAPI 查询用户信息
+    const user = await findUserByRecordKey(userId) || await findUserByUsername(userId);
 
-    if (rows.length === 0) {
+    if (!user) {
       return res.status(401).json({ error: '用户不存在或已禁用' });
     }
 
-    const user = rows[0];
+    if (!user.is_active) {
+      return res.status(401).json({ error: '用户不存在或已禁用' });
+    }
+
     req.user = user;
     console.log('[Auth] User:', user.username, 'role:', user.role);
 
