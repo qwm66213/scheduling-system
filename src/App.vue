@@ -11,15 +11,15 @@ const user = computed(() => JSON.parse(localStorage.getItem('user') || '{}'))
 const { STORES, ALL_STORES, STORE_ID_LIST, selectedStoreId, isSuperAdmin, allowAllStores, initStore, setStoreId, getStoreName } = useStore()
 
 const allMenuItems = [
-  // { path: '/', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
+  // { path: '/dashboard', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/schedule', icon: 'Calendar', title: '预排班' },
   { path: '/attendance', icon: 'Calendar', title: '考勤记录' },
+  { path: '/daily-summary', icon: 'DataLine', title: '每日奖金汇总' },
+  { path: '/personal-summary', icon: 'UserFilled', title: '个人奖金明细' },
   { path: '/staff', icon: 'User', title: '员工管理' },
   { path: '/accounts', icon: 'UserFilled', title: '账号管理', adminOnly: true },
   { path: '/settings', icon: 'Setting', title: '设置' },
-  { path: '/daily-summary', icon: 'DataLine', title: '总数据表' },
-  { path: '/personal-summary', icon: 'UserFilled', title: '个人数据表' },
 ]
 
 const menuItems = computed(() => {

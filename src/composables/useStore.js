@@ -79,6 +79,13 @@ export function useStore() {
       } else {
         selectedStoreId.value = 'all' // 首次登录默认"全部"
       }
+
+      // 如果当前路由不允许"全部"，自动切换到第一个门店
+      const route = router.currentRoute.value
+      if (route.meta?.allowAllStores === false && selectedStoreId.value === 'all') {
+        const firstStoreId = Object.keys(STORES)[0]
+        selectedStoreId.value = Number(firstStoreId)
+      }
     }
   }
 

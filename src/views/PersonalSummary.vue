@@ -9,7 +9,7 @@ const loading = ref(false)
 const currentYear = ref(new Date().getFullYear())
 const currentMonth = ref(new Date().getMonth() + 1)
 const selectedDate = ref('')
-const allData = ref([])
+const dayData = ref([]) // 改为存储当天数据
 
 const backPositions = ['厨师长', '副厨', '第一炉灶', '第二炉灶', '第三炉灶', '第四炉灶', '第五炉灶', '第六炉灶', '冷菜主管', '冷菜', '蒸箱', '点心师傅', '切配主管', '切配', '海鲜师傅', '打荷', '洗碗洗菜', '寒暑假工', '小时工']
 const frontPositions = ['店长', '前厅经理', '前厅主管', '收银', '金牌师傅', '迎宾', '服务员', '外卖', '保洁', '小时工']
@@ -27,6 +27,13 @@ const todayInfo = computed(() => {
     weekday: '星期' + weekNames[today.getDay()]
   }
 })
+
+// 获取昨天的日期字符串 (T-1)
+function getYesterday() {
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  return yesterday.toISOString().slice(0, 10)
+}
 
 const monthInfo = computed(() => {
   const daysInMonth = new Date(currentYear.value, currentMonth.value, 0).getDate()
@@ -58,12 +65,21 @@ function thisMonth() {
 }
 
 const dateOptions = computed(() => {
-  return [...new Set(allData.value.map(r => r.date))].sort().reverse()
-})
+  // 生成当月所有日期，但只显示今天及之前的日期
+  const days = monthInfo.value.days
+  const m = String(currentMonth.value).padStart(2, '0')
+  const dates = []
+  const today = new Date()
+  const todayStr = today.toISOString().slice(0, 10)
 
-const dayData = computed(() => {
-  if (!selectedDate.value) return []
-  return allData.value.filter(r => r.date === selectedDate.value)
+  for (let d = 1; d <= days; d++) {
+    const dateStr = `${currentYear.value}-${m}-${String(d).padStart(2, '0')}`
+    // 只显示今天及之前的日期
+    if (dateStr <= todayStr) {
+      dates.push(dateStr)
+    }
+  }
+  return dates.reverse() // 最新的日期在前
 })
 
 const frontData = computed(() => {
@@ -84,31 +100,55 @@ function fmt(n) {
   return (n || 0).toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
-async function loadData() {
+// 按需加载单天数据
+async function loadDayData(date) {
+  if (!date) {
+    dayData.value = []
+    return
+  }
+
   loading.value = true
   try {
-    const m = String(currentMonth.value).padStart(2, '0')
     const params = {
-      start_date: `${currentYear.value}-${m}-01`,
-      end_date: `${currentYear.value}-${m}-31`
+      start_date: date,
+      end_date: date
     }
     const storeId = getStoreId()
     if (storeId) params.store_id = storeId
-    allData.value = await getPersonalSummary(params)
-    const dates = dateOptions.value
-    if (dates.length > 0) {
-      selectedDate.value = dates[0]
-    } else {
-      selectedDate.value = ''
-    }
+    dayData.value = await getPersonalSummary(params)
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => { loadData() })
+// 初始化：默认加载昨天(T-1)的数据
+function initDate() {
+  const yesterday = getYesterday()
+  selectedDate.value = yesterday
+  // 更新年月为昨天所在月份
+  const d = new Date(yesterday)
+  currentYear.value = d.getFullYear()
+  currentMonth.value = d.getMonth() + 1
+}
 
-watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
+onMounted(() => {
+  initDate()
+  loadDayData(selectedDate.value)
+})
+
+// 监听日期变化，按需加载
+watch(selectedDate, (newDate) => {
+  if (newDate) {
+    loadDayData(newDate)
+  }
+})
+
+// 监听门店变化，重新加载
+watch(selectedStoreId, () => {
+  if (selectedDate.value) {
+    loadDayData(selectedDate.value)
+  }
+})
 </script>
 
 <template>
@@ -122,10 +162,16 @@ watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
       <div class="time-card active">
         <div class="time-card-label">选择日期</div>
         <div class="time-card-value">
-          <el-select v-model="selectedDate" placeholder="选择日期" size="small" style="width: 140px;">
+          <el-select v-model="selectedDate" placeholder="选择日期" size="small" style="width: 140px;" :disabled="!getStoreId()">
             <el-option v-for="d in dateOptions" :key="d" :label="d" :value="d" />
+            <template #empty>
+              <div style="padding: 10px; text-align: center; color: #909399;">
+                {{ loading ? '加载中...' : '暂无数据' }}
+              </div>
+            </template>
           </el-select>
         </div>
+        <div class="time-card-sub" v-if="!getStoreId()" style="color: #f56c6c;">请先选择门店</div>
       </div>
       <div class="time-card active" @click="thisMonth">
         <div class="time-card-label">本月</div>

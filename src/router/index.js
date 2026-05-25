@@ -9,8 +9,8 @@ const routes = [
   { path: '/staff', name: 'Staff', component: () => import('../views/Staff.vue'), meta: { title: '员工管理' } },
   { path: '/accounts', name: 'Accounts', component: () => import('../views/Accounts.vue'), meta: { title: '账号管理' } },
   { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue'), meta: { title: '设置' } },
-  { path: '/daily-summary', name: 'DailySummary', component: () => import('../views/DailySummary.vue'), meta: { title: '总数据表' } },
-  { path: '/personal-summary', name: 'PersonalSummary', component: () => import('../views/PersonalSummary.vue'), meta: { title: '个人数据表', allowAllStores: false } },
+  { path: '/daily-summary', name: 'DailySummary', component: () => import('../views/DailySummary.vue'), meta: { title: '每日奖金汇总' } },
+  { path: '/personal-summary', name: 'PersonalSummary', component: () => import('../views/PersonalSummary.vue'), meta: { title: '个人奖金明细', allowAllStores: false } },
 ]
 
 const router = createRouter({
