@@ -1,4 +1,5 @@
 import { ref, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 // 全部门店的标识
 const ALL_STORES = 'all'
@@ -39,12 +40,31 @@ const STORE_ID_LIST = [ALL_STORES, ...Object.keys(STORES).map(Number).sort((a, b
 const selectedStoreId = ref(null)
 
 export function useStore() {
+  const router = useRouter()
+
   const user = computed(() => {
     const userStr = localStorage.getItem('user')
     return userStr ? JSON.parse(userStr) : {}
   })
 
   const isSuperAdmin = computed(() => user.value.role === 'admin')
+
+  // 是否允许"全部"选项（从路由 meta 获取）
+  const allowAllStores = computed(() => {
+    const route = router.currentRoute.value
+    return route.meta?.allowAllStores !== false // 默认允许
+  })
+
+  // 路由切换时，如果当前页面不允许"全部"但选中的是"全部"，自动切换到第一个门店
+  watch(
+    () => router.currentRoute.value,
+    (route) => {
+      if (route.meta?.allowAllStores === false && selectedStoreId.value === ALL_STORES) {
+        const firstStoreId = Object.keys(STORES)[0]
+        setStoreId(Number(firstStoreId))
+      }
+    }
+  )
 
   // 初始化：首次登录默认选择"全部"
   function initStore() {
@@ -89,6 +109,7 @@ export function useStore() {
     STORE_ID_LIST,
     selectedStoreId,
     isSuperAdmin,
+    allowAllStores,
     initStore,
     setStoreId,
     getStoreId,

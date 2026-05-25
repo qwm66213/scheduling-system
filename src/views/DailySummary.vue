@@ -1,9 +1,9 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { getDailySummary } from '../utils/api'
+import { getDailySummary, getDailySummaryAll } from '../utils/api'
 import { useStore } from '../composables/useStore'
 
-const { selectedStoreId, getStoreId } = useStore()
+const { STORES, selectedStoreId, getStoreId } = useStore()
 
 const loading = ref(false)
 const currentYear = ref(new Date().getFullYear())
@@ -78,8 +78,13 @@ async function loadData() {
       end_date: `${currentYear.value}-${m}-31`
     }
     const storeId = getStoreId()
-    if (storeId) params.store_id = storeId
-    tableData.value = await getDailySummary(params)
+
+    if (storeId) {
+      tableData.value = await getDailySummary({ ...params, store_id: storeId })
+    } else {
+      // 调用后端批量接口获取所有门店汇总数据
+      tableData.value = await getDailySummaryAll(params)
+    }
     currentPage.value = 1
   } finally {
     loading.value = false

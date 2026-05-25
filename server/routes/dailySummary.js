@@ -230,6 +230,95 @@ function calculateBonus(revenue, attendanceCount, efficiency, bonusRatio) {
   return Math.round(bonus * 100) / 100;
 }
 
+// 获取单个门店的日数据（控制并发数量）
+async function getStoreDailyData(storeId, storeName, start_date, end_date) {
+  // 获取人效标准和奖金比例
+  const settings = await getSettings(storeName);
+
+  // 生成日期列表
+  const dates = [];
+  const start = new Date(start_date);
+  const end = new Date(end_date);
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    dates.push(d.toISOString().slice(0, 10));
+  }
+
+  // 控制并发：每次请求 10 天的数据
+  const CONCURRENCY = 10;
+  const result = [];
+
+  for (let i = 0; i < dates.length; i += CONCURRENCY) {
+    const batch = dates.slice(i, i + CONCURRENCY);
+    const batchResults = await Promise.all(batch.map(dateStr =>
+      Promise.all([
+        getActualRevenue(storeId, dateStr),
+        getAttendanceRecords(storeName, dateStr)
+      ]).then(([revenue, records]) => {
+        const frontCount = countValidAttendance(records, 'front');
+        const backCount = countValidAttendance(records, 'back');
+        const frontBonus = calculateBonus(revenue, frontCount, settings.front_efficiency, settings.front_bonus_ratio);
+        const backBonus = calculateBonus(revenue, backCount, settings.back_efficiency, settings.back_bonus_ratio);
+
+        return {
+          date: dateStr,
+          actual_revenue: revenue,
+          front_check_count: frontCount / 2,
+          front_bonus: frontBonus,
+          back_check_count: backCount / 2,
+          back_bonus: backBonus
+        };
+      })
+    ));
+    result.push(...batchResults);
+  }
+
+  return result;
+}
+
+// GET /api/daily-summary/all?start_date=&end_date= (批量获取所有门店汇总)
+router.get('/all', async (req, res) => {
+  try {
+    const { start_date, end_date } = req.query;
+    if (!start_date || !end_date) {
+      return res.status(400).json(response(0, 'start_date and end_date required'));
+    }
+
+    // 控制门店并发数量：每次只并行获取 3 个门店
+    const storeIds = Object.keys(STORE_ID_TO_NAME).map(Number);
+    const results = [];
+    const STORE_CONCURRENCY = 3;
+
+    for (let i = 0; i < storeIds.length; i += STORE_CONCURRENCY) {
+      const batchIds = storeIds.slice(i, i + STORE_CONCURRENCY);
+      const batchResults = await Promise.all(batchIds.map(storeId => {
+        const storeName = STORE_ID_TO_NAME[storeId];
+        return getStoreDailyData(storeId, storeName, start_date, end_date).catch(() => []);
+      }));
+      results.push(...batchResults);
+    }
+
+    // 按日期汇总
+    const merged = {};
+    for (const data of results) {
+      for (const row of data) {
+        if (!merged[row.date]) {
+          merged[row.date] = { date: row.date, actual_revenue: 0, front_check_count: 0, front_bonus: 0, back_check_count: 0, back_bonus: 0 };
+        }
+        merged[row.date].actual_revenue += row.actual_revenue || 0;
+        merged[row.date].front_check_count += row.front_check_count || 0;
+        merged[row.date].front_bonus += row.front_bonus || 0;
+        merged[row.date].back_check_count += row.back_check_count || 0;
+        merged[row.date].back_bonus += row.back_bonus || 0;
+      }
+    }
+
+    res.json(response(1, '获取成功', Object.values(merged)));
+  } catch (err) {
+    console.error('[DailySummary] /all Error:', err.message);
+    res.status(500).json(response(0, err.message));
+  }
+});
+
 // GET /api/daily-summary?start_date=&end_date=
 router.get('/', async (req, res) => {
   try {
@@ -248,41 +337,7 @@ router.get('/', async (req, res) => {
       return res.json(response(1, '获取成功', []));
     }
 
-    // 获取人效标准和奖金比例
-    const settings = await getSettings(storeName);
-
-    // 遍历日期范围内的每一天
-    const result = [];
-    const start = new Date(start_date);
-    const end = new Date(end_date);
-
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().slice(0, 10);
-
-      // 并行获取当日营业额和考勤记录
-      const [revenue, records] = await Promise.all([
-        getActualRevenue(storeId, dateStr),
-        getAttendanceRecords(storeName, dateStr)
-      ]);
-
-      // 计算有效出勤人次
-      const frontCount = countValidAttendance(records, 'front');
-      const backCount = countValidAttendance(records, 'back');
-
-      // 计算奖金
-      const frontBonus = calculateBonus(revenue, frontCount, settings.front_efficiency, settings.front_bonus_ratio);
-      const backBonus = calculateBonus(revenue, backCount, settings.back_efficiency, settings.back_bonus_ratio);
-
-      result.push({
-        date: dateStr,
-        actual_revenue: revenue,
-        front_check_count: frontCount / 2,
-        front_bonus: frontBonus,
-        back_check_count: backCount / 2,
-        back_bonus: backBonus
-      });
-    }
-
+    const result = await getStoreDailyData(storeId, storeName, start_date, end_date);
     res.json(response(1, '获取成功', result));
   } catch (err) {
     console.error('[DailySummary] Error:', err.message);
