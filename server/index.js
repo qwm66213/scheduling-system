@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 const https = require('https');
 
-const revenueRoutes = require('./routes/revenue');
+const revenueRoutes = require('./routes/revenue-openapi');
 const staffRoutes = require('./routes/staff');
 const scheduleRoutes = require('./routes/schedule');
 const attendanceRoutes = require('./routes/attendance-openapi');
