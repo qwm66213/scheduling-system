@@ -133,7 +133,7 @@ onMounted(() => {
       </el-form-item>
       <el-form-item label="门店" required>
         <el-select v-model="form.store_id" placeholder="请选择门店" style="width: 100%">
-          <el-option v-for="id in STORE_ID_LIST" :key="id" :label="STORES[id]" :value="id" />
+          <el-option v-for="id in STORE_ID_LIST.filter(x => x !== 'all')" :key="id" :label="STORES[id]" :value="id" />
         </el-select>
       </el-form-item>
       <el-form-item label="角色">
