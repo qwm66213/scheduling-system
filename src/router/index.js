@@ -10,6 +10,7 @@ const routes = [
   { path: '/settings', name: 'Settings', component: () => import('../views/Settings.vue'), meta: { title: '设置' } },
   { path: '/daily-summary', name: 'DailySummary', component: () => import('../views/DailySummary.vue'), meta: { title: '每日奖金汇总' } },
   { path: '/personal-summary', name: 'PersonalSummary', component: () => import('../views/PersonalSummary.vue'), meta: { title: '个人奖金明细', allowAllStores: false } },
+  { path: '/:pathMatch(.*)*', redirect: '/revenue' },
 ]
 
 const router = createRouter({
