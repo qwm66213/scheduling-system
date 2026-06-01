@@ -87,9 +87,6 @@ export const batchSaveAttendance = (records) => api.post('/attendance/batch', { 
 export const updateAttendance = (id, data) => api.put(`/attendance/${id}`, data).then(r => r.data)
 export const getAttendanceSummary = (params) => api.get('/attendance/summary', { params }).then(r => r.data)
 
-// Dashboard
-export const getDashboardSummary = (params) => api.get('/dashboard/summary', { params }).then(r => r.data)
-
 // Settings
 export const getSettings = (params) => api.get('/settings', { params }).then(r => r.data)
 export const saveSettings = (data, params) => api.put('/settings', data, { params })
