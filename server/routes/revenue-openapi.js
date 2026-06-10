@@ -21,7 +21,7 @@ function response(status, errmsg, data = null) {
 const REVENUE_API = {
   token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
-  tableKey: 'tb_640804974110c'  // 预估营业额表
+  tableKey: 'tb_b9c58872b103f'  // 预估营业额表
 };
 
 // 外部实际营业额 API 配置

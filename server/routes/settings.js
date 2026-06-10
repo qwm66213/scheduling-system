@@ -20,7 +20,7 @@ function response(status, errmsg, data = null) {
 const EFFICIENCY_API = {
   token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
-  tableKey: 'tb_f733867740388'
+  tableKey: 'tb_f78e9d4db7476'
 };
 
 // 门店ID到门店名称的映射

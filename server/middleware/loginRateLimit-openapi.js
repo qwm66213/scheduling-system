@@ -6,7 +6,7 @@
 const { findRecordByTitle, createRecord, updateRecord } = require('../utils/openapi');
 
 // 登录尝试表配置
-const LOGIN_ATTEMPTS_TABLE_KEY = 'tb_802042df84ad5';
+const LOGIN_ATTEMPTS_TABLE_KEY = 'tb_b7440ebfcd35b';
 
 // 配置参数
 const MAX_ATTEMPTS = 5;           // 最大失败次数

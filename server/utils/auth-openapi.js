@@ -7,7 +7,7 @@ const { findRecordByTitle, findRecords, createRecord, updateRecord } = require('
 const bcrypt = require('bcryptjs');
 
 // 用户认证表配置
-const AUTH_TABLE_KEY = 'tb_872fe963589b5';
+const AUTH_TABLE_KEY = 'tb_a5f4e61599971';
 
 /**
  * 查询用户（按用户名）

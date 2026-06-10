@@ -5,7 +5,7 @@
 const { createRecord, findRecords } = require('../utils/openapi');
 
 // 登录日志表配置
-const LOGIN_LOGS_TABLE_KEY = 'tb_a7cc741157dec';
+const LOGIN_LOGS_TABLE_KEY = 'tb_97ed403b695f3';
 
 /**
  * 记录登录日志

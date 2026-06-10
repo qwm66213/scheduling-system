@@ -88,9 +88,9 @@ const OPEN_API = {
   userId: '{{Emoo-User-Id}}'
 };
 
-const SETTINGS_TABLE_KEY = 'tb_f733867740388';
-const ATTENDANCE_TABLE_KEY = 'tb_cf08506299b28';
-const STAFF_TABLE_KEY = 'bd_fa9be88a72f53';
+const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
+const ATTENDANCE_TABLE_KEY = 'tb_fa58d498f9bcb';
+const STAFF_TABLE_KEY = 'tb_b6d4799a5697f';
 const REVENUE_WS_APP_KEY = 'b0d285504bb043329b6a4fb95da8ce59';
 
 const STORE_ID_TO_NAME = {
