@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const https = require('https');
+const http = require('http');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -18,7 +18,7 @@ function response(status, errmsg, data = null) {
 
 // OpenAPI 配置
 const OPEN_API = {
-  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}'
 };
 
@@ -69,7 +69,7 @@ function isSecondment(status) {
 function callOpenAPI(path, postData, method = 'POST') {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'app.emoosearch.com',
+      hostname: 'localhost',
       path: path,
       method: method,
       headers: {
@@ -79,7 +79,7 @@ function callOpenAPI(path, postData, method = 'POST') {
       }
     };
 
-    const req = https.request(options, res => {
+    const req = http.request(options, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
       res.on('end', () => {

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const https = require('https');
+const http = require('http');
 const authMiddleware = require('../middleware/auth');
 
 router.use(authMiddleware);
@@ -18,7 +18,7 @@ function response(status, errmsg, data = null) {
 
 // OpenAPI 配置
 const OPEN_API = {
-  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}'
 };
 
@@ -27,7 +27,7 @@ const SETTINGS_TABLE_KEY = 'tb_f733867740388';
 // 考勤记录表
 const ATTENDANCE_TABLE_KEY = 'tb_cf08506299b28';
 // 员工信息表
-const STAFF_TABLE_KEY = 'tb_6d6d8c9275e78';
+const STAFF_TABLE_KEY = 'bd_fa9be88a72f53';
 // 营业额 ws_app_key
 const REVENUE_WS_APP_KEY = 'b0d285504bb043329b6a4fb95da8ce59';
 
@@ -71,7 +71,7 @@ function isSecondment(status) {
 function callOpenAPI(path, postData, method = 'POST') {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'app.emoosearch.com',
+      hostname: 'localhost',
       path: path,
       method: method,
       headers: {
@@ -81,7 +81,7 @@ function callOpenAPI(path, postData, method = 'POST') {
       }
     };
 
-    const req = https.request(options, res => {
+    const req = http.request(options, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
       res.on('end', () => {

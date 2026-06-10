@@ -3,13 +3,13 @@
  * 所有模块共享此工具，避免重复代码
  */
 
-const https = require('https');
+const http = require('http');
 
 // OpenAPI 基础配置
 const OPEN_API_BASE = {
-  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
-  hostname: 'app.emoosearch.com'
+  hostname: 'localhost'
 };
 
 /**
@@ -32,7 +32,7 @@ function callOpenAPI(path, postData, method = 'POST') {
       }
     };
 
-    const req = https.request(options, res => {
+    const req = http.request(options, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
       res.on('end', () => {

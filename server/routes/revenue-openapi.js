@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const https = require('https');
+const http = require('http');
 const iconv = require('iconv-lite');
 const authMiddleware = require('../middleware/auth');
 
@@ -19,15 +19,15 @@ function response(status, errmsg, data = null) {
 
 // OpenAPI 配置
 const REVENUE_API = {
-  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
   tableKey: 'tb_640804974110c'  // 预估营业额表
 };
 
 // 外部实际营业额 API 配置
 const EXTERNAL_API = {
-  url: 'https://app.emoosearch.com/open-api/v1/data',
-  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  url: 'http://localhost/open-api/v1/data',
+  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
   wsAppKey: 'b0d285504bb043329b6a4fb95da8ce59'
 };
@@ -54,7 +54,7 @@ const STORE_ID_TO_NAME = {
 function callOpenAPI(path, postData, method = 'POST') {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'app.emoosearch.com',
+      hostname: 'localhost',
       path: path,
       method: method,
       headers: {
@@ -64,7 +64,7 @@ function callOpenAPI(path, postData, method = 'POST') {
       }
     };
 
-    const req = https.request(options, res => {
+    const req = http.request(options, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
       res.on('end', () => {
@@ -192,7 +192,7 @@ async function fetchAllExternalData(storeId, startDate, endDate) {
     });
 
     const options = {
-      hostname: 'app.emoosearch.com',
+      hostname: 'localhost',
       path: '/open-api/v1/data',
       method: 'POST',
       headers: {
@@ -204,7 +204,7 @@ async function fetchAllExternalData(storeId, startDate, endDate) {
 
     try {
       const result = await new Promise((resolve, reject) => {
-        const req = https.request(options, res => {
+        const req = http.request(options, res => {
           const chunks = [];
           res.on('data', d => chunks.push(d));
           res.on('end', () => {

@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const https = require('https');
+const http = require('http');
 
 const revenueRoutes = require('./routes/revenue-openapi');
 const staffRoutes = require('./routes/staff');
@@ -84,13 +84,13 @@ async function generateYesterday() {
 // OpenAPI 配置（每日通知用）
 // =====================
 const OPEN_API = {
-  token: 'emoo_1qTLvYd7MO6IUN0KUxrIPYJSDPUCZqS8ItVi3Abh',
+  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}'
 };
 
 const SETTINGS_TABLE_KEY = 'tb_f733867740388';
 const ATTENDANCE_TABLE_KEY = 'tb_cf08506299b28';
-const STAFF_TABLE_KEY = 'tb_6d6d8c9275e78';
+const STAFF_TABLE_KEY = 'bd_fa9be88a72f53';
 const REVENUE_WS_APP_KEY = 'b0d285504bb043329b6a4fb95da8ce59';
 
 const STORE_ID_TO_NAME = {
@@ -130,7 +130,7 @@ function isSecondment(status) {
 function callOpenAPI(path, postData, method = 'POST') {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'app.emoosearch.com',
+      hostname: 'localhost',
       path: path,
       method: method,
       headers: {
@@ -140,7 +140,7 @@ function callOpenAPI(path, postData, method = 'POST') {
       }
     };
 
-    const req = https.request(options, res => {
+    const req = http.request(options, res => {
       const chunks = [];
       res.on('data', d => chunks.push(d));
       res.on('end', () => {
