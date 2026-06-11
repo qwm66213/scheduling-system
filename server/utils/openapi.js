@@ -9,7 +9,7 @@ const http = require('http');
 const OPEN_API_BASE = {
   token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
-  hostname: 'host.docker.internal'
+  hostname: 'localhost'
 };
 
 /**
