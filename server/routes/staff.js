@@ -79,7 +79,7 @@ async function fetchStaffData(storeId) {
   });
 
   const options = {
-    hostname: 'localhost',
+    hostname: 'host.docker.internal',
     path: '/open-api/v1/data/records/list',
     method: 'POST',
     headers: {

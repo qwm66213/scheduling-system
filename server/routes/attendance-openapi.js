@@ -57,7 +57,7 @@ const STORE_NAME_TO_ABBREV = {
 function callOpenAPI(path, postData, method = 'POST') {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'localhost',
+      hostname: 'host.docker.internal',
       path: path,
       method: method,
       headers: {

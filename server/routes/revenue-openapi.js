@@ -26,7 +26,7 @@ const REVENUE_API = {
 
 // 外部实际营业额 API 配置
 const EXTERNAL_API = {
-  url: 'http://localhost/open-api/v1/data',
+  url: 'http://host.docker.internal/open-api/v1/data',
   token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
   wsAppKey: 'b0d285504bb043329b6a4fb95da8ce59'
@@ -54,7 +54,7 @@ const STORE_ID_TO_NAME = {
 function callOpenAPI(path, postData, method = 'POST') {
   return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'localhost',
+      hostname: 'host.docker.internal',
       path: path,
       method: method,
       headers: {
@@ -192,7 +192,7 @@ async function fetchAllExternalData(storeId, startDate, endDate) {
     });
 
     const options = {
-      hostname: 'localhost',
+      hostname: 'host.docker.internal',
       path: '/open-api/v1/data',
       method: 'POST',
       headers: {
