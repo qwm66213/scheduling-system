@@ -91,7 +91,7 @@ const OPEN_API = {
 const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
 const ATTENDANCE_TABLE_KEY = 'tb_fa58d498f9bcb';
 const STAFF_TABLE_KEY = 'tb_b6d4799a5697f';
-const REVENUE_WS_APP_KEY = 'b0d285504bb043329b6a4fb95da8ce59';
+const REVENUE_WS_APP_KEY = 'ac5513bfd12145f89fb81fa8596588af';
 
 const STORE_ID_TO_NAME = {
   3: '930殷高店',

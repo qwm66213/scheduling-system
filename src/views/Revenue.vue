@@ -207,7 +207,9 @@ async function loadForecastData() {
   loading.value = true
   try {
     const m = String(currentMonth.value).padStart(2, '0')
-    const params = { start_date: `${currentYear.value}-${m}-01`, end_date: `${currentYear.value}-${m}-31`, version: 'forecast' }
+    const lastDay = new Date(currentYear.value, currentMonth.value, 0).getDate()
+    const end_date = `${currentYear.value}-${m}-${String(lastDay).padStart(2, '0')}`
+    const params = { start_date: `${currentYear.value}-${m}-01`, end_date, version: 'forecast' }
     const storeId = getStoreId()
     if (storeId) params.store_id = storeId
     forecastData.value = await getRevenue(params)
@@ -219,7 +221,9 @@ async function loadForecastData() {
 async function loadActualData() {
   try {
     const m = String(currentMonth.value).padStart(2, '0')
-    const params = { start_date: `${currentYear.value}-${m}-01`, end_date: `${currentYear.value}-${m}-31`, version: 'actual' }
+    const lastDay = new Date(currentYear.value, currentMonth.value, 0).getDate()
+    const end_date = `${currentYear.value}-${m}-${String(lastDay).padStart(2, '0')}`
+    const params = { start_date: `${currentYear.value}-${m}-01`, end_date, version: 'actual' }
     const storeId = getStoreId()
     if (storeId) params.store_id = storeId
     actualData.value = await getRevenue(params)

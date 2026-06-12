@@ -29,7 +29,7 @@ const EXTERNAL_API = {
   url: 'http://localhost/open-api/v1/data',
   token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
   userId: '{{Emoo-User-Id}}',
-  wsAppKey: 'b0d285504bb043329b6a4fb95da8ce59'
+  wsAppKey: 'ac5513bfd12145f89fb81fa8596588af'
 };
 
 // 所有门店ID列表

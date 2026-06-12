@@ -27,7 +27,7 @@ const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
 // 考勤记录表
 const ATTENDANCE_TABLE_KEY = 'tb_fa58d498f9bcb';
 // 营业额 ws_app_key
-const REVENUE_WS_APP_KEY = 'b0d285504bb043329b6a4fb95da8ce59';
+const REVENUE_WS_APP_KEY = 'ac5513bfd12145f89fb81fa8596588af';
 
 // 门店ID到门店名称的映射
 const STORE_ID_TO_NAME = {
