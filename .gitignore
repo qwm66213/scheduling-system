@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -24,8 +29,9 @@ dist-ssr
 *.sw?
 docs/
 
-# Test and debug scripts
-test-*.js
-debug-*.js
-*-test.js
-*-debug.js
+# Test, debug and log files
+scripts/
+*.log
+
+# Plans and documentation
+plans/

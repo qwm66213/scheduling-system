@@ -1,11 +1,11 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const config = require('../config');
 
 // JWT 配置
-// 生产环境必须通过环境变量设置 JWT_SECRET，否则使用默认值（不安全）
-const JWT_SECRET = process.env.JWT_SECRET || '930-system-dev-secret-key-2024';
-const JWT_EXPIRES_IN = '24h'; // Token 24小时过期
-const JWT_REFRESH_EXPIRES_IN = '7d'; // 刷新 Token 7天过期
+const JWT_SECRET = config.jwt.secret;
+const JWT_EXPIRES_IN = config.jwt.expiresIn;
+const JWT_REFRESH_EXPIRES_IN = config.jwt.refreshExpiresIn;
 
 if (!process.env.JWT_SECRET) {
   console.warn('[WARN] JWT_SECRET 未设置，使用默认密钥，生产环境请配置环境变量！');

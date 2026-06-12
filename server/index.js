@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const http = require('http');
+const config = require('./config');
 
 const revenueRoutes = require('./routes/revenue-openapi');
 const staffRoutes = require('./routes/staff');
@@ -14,7 +15,7 @@ const personalSummaryRoutes = require('./routes/personalSummary');
 const authRoutes = require('./routes/auth');
 
 const app = express();
-const PORT = 3001;
+const PORT = config.server.port;
 
 app.use(cors());
 app.use(express.json());
@@ -84,30 +85,17 @@ async function generateYesterday() {
 // OpenAPI 配置（每日通知用）
 // =====================
 const OPEN_API = {
-  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
-  userId: '{{Emoo-User-Id}}'
+  token: config.openapi.token,
+  userId: config.openapi.userId
 };
 
 const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
 const ATTENDANCE_TABLE_KEY = 'tb_fa58d498f9bcb';
 const STAFF_TABLE_KEY = 'tb_b6d4799a5697f';
-const REVENUE_WS_APP_KEY = 'ac5513bfd12145f89fb81fa8596588af';
+const REVENUE_WS_APP_KEY = config.revenue.wsAppKey;
 
-const STORE_ID_TO_NAME = {
-  3: '930殷高店',
-  4: '930长江西路店',
-  5: '930国和店',
-  7: '930宜川店',
-  8: '930小馆拾光里店',
-  9: '930浦锦路店',
-  13: '930金沙江店',
-  15: '930车站南路店',
-  16: '930中华路店',
-  18: '930柳营路店',
-  19: '930长阳店'
-};
-
-const STORE_IDS = [3, 4, 5, 7, 8, 9, 13, 15, 16, 18, 19];
+const STORE_ID_TO_NAME = config.stores.STORE_ID_TO_NAME;
+const STORE_IDS = config.stores.STORE_IDS;
 
 const DEFAULT_SETTINGS = {
   front_efficiency: 2800,
@@ -400,7 +388,7 @@ async function calculateStoreDailyData(storeId, date) {
   };
 }
 
-const WEBHOOK_URL = 'https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=a065dffd-6817-4e2c-89c2-98d13b916f0f';
+const WEBHOOK_URL = config.webhook.url;
 
 async function sendDailyNotification() {
   try {
