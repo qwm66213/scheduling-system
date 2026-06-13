@@ -17,6 +17,9 @@ dist-ssr
 .env.local
 .env.*.local
 
+# Deploy files (local deployment)
+deploy/
+
 # Editor directories and files
 .vscode/
 .idea
