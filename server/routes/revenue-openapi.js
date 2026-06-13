@@ -4,6 +4,7 @@ const http = require('http');
 const iconv = require('iconv-lite');
 const authMiddleware = require('../middleware/auth');
 const config = require('../config');
+const { callOpenAPI } = require('../utils/openapi');
 
 router.use(authMiddleware);
 
@@ -53,10 +54,8 @@ function rateLimit(key) {
   return true; // 允许请求
 }
 
-// OpenAPI 配置
+// 营业额表配置
 const REVENUE_API = {
-  token: config.openapi.token,
-  userId: config.openapi.userId,
   tableKey: 'tb_b9c58872b103f'  // 预估营业额表
 };
 
@@ -73,46 +72,6 @@ const STORE_IDS = config.stores.STORE_IDS;
 
 // 门店ID到门店名称的映射
 const STORE_ID_TO_NAME = config.stores.STORE_ID_TO_NAME;
-
-// 调用 OpenAPI 的通用方法
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${REVENUE_API.token}`,
-        'Emoo-User-Id': REVENUE_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[Revenue] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[Revenue] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
-}
 
 // 查询 OpenAPI 是否存在指定记录（按标题查询）
 async function findExistingRecord(title) {

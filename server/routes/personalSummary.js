@@ -3,6 +3,7 @@ const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
 const config = require('../config');
+const { callOpenAPI } = require('../utils/openapi');
 
 router.use(authMiddleware);
 
@@ -52,19 +53,10 @@ function rateLimit(key) {
   return true; // 允许请求
 }
 
-// OpenAPI 配置
-const OPEN_API = {
-  token: config.openapi.token,
-  userId: config.openapi.userId
-};
-
-// 人效标准表
+// 表配置
 const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
-// 考勤记录表
 const ATTENDANCE_TABLE_KEY = 'tb_fa58d498f9bcb';
-// 员工信息表
 const STAFF_TABLE_KEY = 'tb_b6d4799a5697f';
-// 营业额 ws_app_key
 const REVENUE_WS_APP_KEY = config.revenue.wsAppKey;
 
 // 门店ID到门店名称的映射
@@ -89,46 +81,6 @@ function isSecondment(status) {
   if (VALID_ATTENDANCE_STATUS.includes(status)) return false;
   if (INVALID_ATTENDANCE_STATUS.includes(status)) return false;
   return status.length === 1;
-}
-
-// 调用 OpenAPI
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${OPEN_API.token}`,
-        'Emoo-User-Id': OPEN_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[PersonalSummary] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[PersonalSummary] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
 }
 
 // 获取人效标准和奖金比例
@@ -187,6 +139,40 @@ async function getActualRevenue(storeId, date) {
   return totalRevenue;
 }
 
+// 批量获取营业额数据（按日期范围）
+async function getActualRevenueByRange(storeId, startDate, endDate) {
+  const postData = {
+    page_size: 200,
+    cursor: '',
+    text_format: 'markdown',
+    filter_conditions: [[
+      { field: 'ws_app.ws_app_key', operator: 'eq', value: REVENUE_WS_APP_KEY },
+      { field: 'doc_group.app_group_id', operator: 'eq', value: 'business_summary' },
+      { field: '统计日期', operator: 'gte', value: startDate },
+      { field: '统计日期', operator: 'lte', value: endDate },
+      { field: '门店ID', operator: 'eq', value: String(storeId) }
+    ]]
+  };
+
+  const result = await callOpenAPI('/open-api/v1/data', postData);
+  if (!result || !result.results) return {};
+
+  // 按日期分组
+  const dateMap = {};
+  for (const item of result.results) {
+    if (item.doc_group?.app_group_id !== 'business_summary') continue;
+    const date = item.content?.统计日期;
+    if (!date) continue;
+
+    if (!dateMap[date]) dateMap[date] = 0;
+    const marketDetails = item.content?.市别明细 || [];
+    for (const market of marketDetails) {
+      dateMap[date] += Number(market.营业额 || 0);
+    }
+  }
+  return dateMap;
+}
+
 // 获取当日考勤记录
 async function getAttendanceRecords(storeName, date) {
   const allResults = [];
@@ -211,6 +197,42 @@ async function getAttendanceRecords(storeName, date) {
   }
 
   return allResults;
+}
+
+// 批量获取考勤记录（按日期范围）
+async function getAttendanceRecordsByRange(storeName, startDate, endDate) {
+  const allResults = [];
+  let currentPage = 1;
+  const pageSize = 100;
+
+  while (true) {
+    const postData = {
+      table_key: ATTENDANCE_TABLE_KEY,
+      page_size: pageSize,
+      current_page: currentPage,
+      filters: [`所属门店:eq:${storeName}`, `日期:gte:${startDate}`, `日期:lte:${endDate}`],
+      sort: 'created_at:DESC'
+    };
+
+    const data = await callOpenAPI('/open-api/v1/data/records/list', postData);
+    if (!data || !data.results || data.results.length === 0) break;
+
+    allResults.push(...data.results);
+    if (data.results.length < pageSize) break;
+    currentPage++;
+  }
+
+  // 按日期分组
+  const dateMap = {};
+  for (const item of allResults) {
+    const fields = item.fields || {};
+    const date = fields['日期'];
+    if (!date) continue;
+
+    if (!dateMap[date]) dateMap[date] = [];
+    dateMap[date].push(item);
+  }
+  return dateMap;
 }
 
 // 获取员工列表
@@ -312,10 +334,12 @@ router.get('/', async (req, res) => {
       return res.json(response(1, '获取成功', []));
     }
 
-    // 并行获取员工列表和人效标准
-    const [employees, settings] = await Promise.all([
+    // 并行获取员工列表、人效标准、营业额和考勤数据（批量查询）
+    const [employees, settings, revenueMap, attendanceMap] = await Promise.all([
       getEmployees(storeName),
-      getSettings(storeName)
+      getSettings(storeName),
+      getActualRevenueByRange(storeId, start_date, end_date),
+      getAttendanceRecordsByRange(storeName, start_date, end_date)
     ]);
 
     // 遍历日期范围
@@ -326,11 +350,9 @@ router.get('/', async (req, res) => {
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().slice(0, 10);
 
-      // 并行获取当日营业额和考勤记录
-      const [revenue, records] = await Promise.all([
-        getActualRevenue(storeId, dateStr),
-        getAttendanceRecords(storeName, dateStr)
-      ]);
+      // 从批量查询结果中获取当日数据
+      const revenue = revenueMap[dateStr] || 0;
+      const records = attendanceMap[dateStr] || [];
 
       // 按业务线统计有效出勤人次
       let frontTotalCount = 0;

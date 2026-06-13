@@ -3,12 +3,12 @@ const cors = require('cors');
 const path = require('path');
 const http = require('http');
 const config = require('./config');
+const { callOpenAPI } = require('./utils/openapi');
 
 const revenueRoutes = require('./routes/revenue-openapi');
 const staffRoutes = require('./routes/staff');
 const scheduleRoutes = require('./routes/schedule');
 const attendanceRoutes = require('./routes/attendance-openapi');
-const dashboardRoutes = require('./routes/dashboard');
 const settingsRoutes = require('./routes/settings');
 const dailySummaryRoutes = require('./routes/dailySummary');
 const personalSummaryRoutes = require('./routes/personalSummary');
@@ -24,7 +24,6 @@ app.use('/api/revenue', revenueRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/attendance', attendanceRoutes);
-app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/daily-summary', dailySummaryRoutes);
 app.use('/api/personal-summary', personalSummaryRoutes);
@@ -112,46 +111,6 @@ function isSecondment(status) {
   if (VALID_ATTENDANCE_STATUS.includes(status)) return false;
   if (INVALID_ATTENDANCE_STATUS.includes(status)) return false;
   return status.length === 1;
-}
-
-// 调用 OpenAPI
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${OPEN_API.token}`,
-        'Emoo-User-Id': OPEN_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[Notification] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[Notification] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
 }
 
 // 获取人效标准和奖金比例

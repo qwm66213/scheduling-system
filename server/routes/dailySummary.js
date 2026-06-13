@@ -3,6 +3,7 @@ const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
 const config = require('../config');
+const { callOpenAPI } = require('../utils/openapi');
 
 router.use(authMiddleware);
 
@@ -31,12 +32,7 @@ function rateLimit(key) {
   return true; // 允许请求
 }
 
-// OpenAPI 配置
-const OPEN_API = {
-  token: config.openapi.token,
-  userId: config.openapi.userId
-};
-
+// 表配置
 // 人效标准表
 const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
 // 考勤记录表
@@ -66,46 +62,6 @@ function isSecondment(status) {
   if (VALID_ATTENDANCE_STATUS.includes(status)) return false;
   if (INVALID_ATTENDANCE_STATUS.includes(status)) return false;
   return status.length === 1;
-}
-
-// 调用 OpenAPI
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${OPEN_API.token}`,
-        'Emoo-User-Id': OPEN_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[DailySummary] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[DailySummary] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
 }
 
 // 获取人效标准和奖金比例

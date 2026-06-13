@@ -3,6 +3,7 @@ const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
 const config = require('../config');
+const { callOpenAPI } = require('../utils/openapi');
 
 router.use(authMiddleware);
 
@@ -17,10 +18,8 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
-// OpenAPI 配置
+// 表配置
 const EFFICIENCY_API = {
-  token: config.openapi.token,
-  userId: config.openapi.userId,
   tableKey: 'tb_f78e9d4db7476'
 };
 
@@ -34,46 +33,6 @@ const DEFAULT_VALUES = {
   front_bonus_ratio: '10%',
   back_bonus_ratio: '12%'
 };
-
-// 调用 OpenAPI
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${EFFICIENCY_API.token}`,
-        'Emoo-User-Id': EFFICIENCY_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[Settings] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[Settings] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
-}
 
 // 查询指定门店的记录
 async function findExistingRecord(storeName) {
@@ -142,14 +101,22 @@ router.put('/', async (req, res) => {
       return res.status(400).json(response(0, '缺少设置值'));
     }
 
-    // 校验奖金比例
-    const frontRatioNum = parseInt(front_bonus_ratio);
-    const backRatioNum = parseInt(back_bonus_ratio);
-    if (isNaN(frontRatioNum) || frontRatioNum <= 0) {
-      return res.json(response(0, '前厅奖金比例不可为负数或0'));
+    // 校验奖金比例（支持百分比格式如"10%"和小数格式如0.1）
+    const parseRatio = (val) => {
+      if (!val) return null;
+      const str = String(val).replace('%', '');
+      const num = parseFloat(str);
+      return isNaN(num) ? null : num;
+    };
+
+    const frontRatioNum = parseRatio(front_bonus_ratio);
+    const backRatioNum = parseRatio(back_bonus_ratio);
+
+    if (front_bonus_ratio && (frontRatioNum === null || frontRatioNum <= 0)) {
+      return res.json(response(0, '前厅奖金比例格式不正确或不可为0'));
     }
-    if (isNaN(backRatioNum) || backRatioNum <= 0) {
-      return res.json(response(0, '后厨奖金比例不可为负数或0'));
+    if (back_bonus_ratio && (backRatioNum === null || backRatioNum <= 0)) {
+      return res.json(response(0, '后厨奖金比例格式不正确或不可为0'));
     }
 
     const existing = await findExistingRecord(storeName);

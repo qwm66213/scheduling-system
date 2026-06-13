@@ -12,7 +12,6 @@ const { STORES, ALL_STORES, STORE_ID_LIST, selectedStoreId, isSuperAdmin, allowA
 
 const allMenuItems = [
   { path: '/revenue', icon: 'Money', title: '营业额管理' },
-  // { path: '/dashboard', icon: 'DataAnalysis', title: '数据看板' },
   { path: '/schedule', icon: 'Calendar', title: '预排班' },
   { path: '/attendance', icon: 'Calendar', title: '考勤记录' },
   { path: '/daily-summary', icon: 'DataLine', title: '每日奖金汇总' },

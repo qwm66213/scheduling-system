@@ -3,6 +3,7 @@ const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
 const config = require('../config');
+const { callOpenAPI } = require('../utils/openapi');
 
 router.use(authMiddleware);
 
@@ -52,10 +53,8 @@ function rateLimit(key) {
   return true; // 允许请求
 }
 
-// OpenAPI 配置
+// 排班表配置
 const SCHEDULE_API = {
-  token: config.openapi.token,
-  userId: config.openapi.userId,
   tableKey: 'tb_58c08b4f443af'
 };
 
@@ -76,46 +75,6 @@ const STORE_NAME_TO_ABBREV = {
   '930柳营路店': '柳',
   '930长阳店': '阳'
 };
-
-// 调用 OpenAPI 的通用方法（支持 POST 和 PUT）
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${SCHEDULE_API.token}`,
-        'Emoo-User-Id': SCHEDULE_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[Schedule] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[Schedule] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
-}
 
 // 查询 OpenAPI 是否存在指定记录（按标题查询）
 async function findExistingRecord(title) {
@@ -167,24 +126,46 @@ router.get('/', async (req, res) => {
     }
 
     // 调用 OpenAPI 查询预排班数据
-    const postData = {
-      table_key: SCHEDULE_API.tableKey,
-      page_size: 100,
-      current_page: 1,
-      filters: [`所属门店:eq:${storeName}`],
-      sort: 'created_at:DESC'
-    };
+    // 分页查询所有排班数据
+    const allResults = [];
+    let currentPage = 1;
+    const pageSize = 100;
 
-    const data = await callOpenAPI('/open-api/v1/data/records/list', postData);
-    console.log('[Schedule] OpenAPI response:', data ? `${data.results?.length || 0} records` : 'null');
+    while (true) {
+      const postData = {
+        table_key: SCHEDULE_API.tableKey,
+        page_size: pageSize,
+        current_page: currentPage,
+        filters: [`所属门店:eq:${storeName}`],
+        sort: 'created_at:DESC'
+      };
 
-    if (!data || !data.results) {
+      const data = await callOpenAPI('/open-api/v1/data/records/list', postData);
+      console.log('[Schedule] OpenAPI response page', currentPage, ':', data ? `${data.results?.length || 0} records` : 'null');
+
+      if (!data || !data.results || data.results.length === 0) {
+        break;
+      }
+
+      allResults.push(...data.results);
+
+      // 如果返回数量少于 pageSize，说明已经获取全部数据
+      if (data.results.length < pageSize) {
+        break;
+      }
+
+      currentPage++;
+    }
+
+    console.log('[Schedule] Total records:', allResults.length);
+
+    if (allResults.length === 0) {
       return res.json(response(1, '获取成功', []));
     }
 
     // 过滤日期范围并转换字段
     const result = [];
-    for (const item of data.results) {
+    for (const item of allResults) {
       const f = item.fields || {};
       const date = f.日期 || '';
       if (date < start_date || date > end_date) continue;
