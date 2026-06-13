@@ -229,7 +229,14 @@ router.put('/users/:id', authMiddleware, requireAdmin, async (req, res) => {
     }
 
     const updates = {};
-    if (role) updates.role = role;
+    if (role) {
+      // 校验角色值
+      const validRoles = ['admin', 'manager'];
+      if (!validRoles.includes(role)) {
+        return res.status(400).json(response(0, '角色值无效，必须是 admin 或 manager'));
+      }
+      updates.role = role;
+    }
     if (password) {
       const pwdCheck = validatePasswordStrength(password);
       if (!pwdCheck.valid) {

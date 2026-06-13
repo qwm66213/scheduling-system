@@ -3,6 +3,7 @@ const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
 const config = require('../config');
+const { callOpenAPI } = require('../utils/openapi');
 
 router.use(authMiddleware);
 
@@ -52,10 +53,8 @@ function rateLimit(key) {
   return true; // 允许请求
 }
 
-// OpenAPI 配置
+// 考勤表配置
 const ATTENDANCE_API = {
-  token: config.openapi.token,
-  userId: config.openapi.userId,
   tableKey: 'tb_fa58d498f9bcb'
 };
 
@@ -77,46 +76,6 @@ const STORE_NAME_TO_ABBREV = {
   '930长阳店': '阳'
 };
 
-// 调用 OpenAPI 的通用方法（支持 POST 和 PUT）
-function callOpenAPI(path, postData, method = 'POST') {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: 'localhost',
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': `Bearer ${ATTENDANCE_API.token}`,
-        'Emoo-User-Id': ATTENDANCE_API.userId
-      }
-    };
-
-    const req = http.request(options, res => {
-      const chunks = [];
-      res.on('data', d => chunks.push(d));
-      res.on('end', () => {
-        try {
-          const buffer = Buffer.concat(chunks);
-          const body = buffer.toString('utf8');
-          const json = JSON.parse(body);
-          if (json.code === 200 && json.data) {
-            resolve(json.data);
-          } else {
-            console.error('[Attendance] API error:', json.code, json.message);
-            resolve(null);
-          }
-        } catch (e) {
-          console.error('[Attendance] Parse error:', e.message);
-          resolve(null);
-        }
-      });
-    });
-    req.on('error', e => reject(e));
-    req.write(JSON.stringify(postData));
-    req.end();
-  });
-}
-
 // 查询 OpenAPI 是否存在指定记录（按标题查询）
 async function findExistingRecord(title) {
   const postData = {
@@ -132,18 +91,27 @@ async function findExistingRecord(title) {
   return null;
 }
 
-// 分页查询所有考勤记录
-async function fetchAllRecords(storeName) {
+// 分页查询考勤记录（支持日期范围过滤）
+async function fetchAllRecords(storeName, startDate = null, endDate = null) {
   const allResults = [];
   let currentPage = 1;
   const pageSize = 100;
+
+  // 构建过滤条件
+  const filters = [`所属门店:eq:${storeName}`];
+  if (startDate) {
+    filters.push(`日期:gte:${startDate}`);
+  }
+  if (endDate) {
+    filters.push(`日期:lte:${endDate}`);
+  }
 
   while (true) {
     const postData = {
       table_key: ATTENDANCE_API.tableKey,
       page_size: pageSize,
       current_page: currentPage,
-      filters: [`所属门店:eq:${storeName}`],
+      filters: filters,
       sort: 'created_at:DESC'
     };
 
@@ -241,16 +209,15 @@ router.get('/', async (req, res) => {
       return res.json(response(1, '获取成功', []));
     }
 
-    // 分页查询所有考勤数据
-    const allResults = await fetchAllRecords(storeName);
+    // 分页查询考勤数据（带日期范围过滤）
+    const allResults = await fetchAllRecords(storeName, start_date, end_date);
     console.log('[Attendance] Total records:', allResults.length);
 
-    // 过滤日期范围并转换字段
+    // 转换字段
     const result = [];
     for (const item of allResults) {
       const f = item.fields || {};
       const date = f.日期 || '';
-      if (date < start_date || date > end_date) continue;
 
       const baseRecord = {
         employee_id: f.员工编码 || '',
