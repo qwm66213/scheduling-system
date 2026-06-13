@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
+const config = require('../config');
 
 router.use(authMiddleware);
 
@@ -16,10 +17,24 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
+// 请求频率限制（防抖）
+const requestTimestamps = new Map();
+const RATE_LIMIT_WINDOW = 2000; // 2秒内不允许重复请求
+
+function rateLimit(key) {
+  const now = Date.now();
+  const lastRequest = requestTimestamps.get(key);
+  if (lastRequest && now - lastRequest < RATE_LIMIT_WINDOW) {
+    return false; // 被限制
+  }
+  requestTimestamps.set(key, now);
+  return true; // 允许请求
+}
+
 // OpenAPI 配置
 const OPEN_API = {
-  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
-  userId: '{{Emoo-User-Id}}'
+  token: config.openapi.token,
+  userId: config.openapi.userId
 };
 
 // 人效标准表
@@ -27,22 +42,10 @@ const SETTINGS_TABLE_KEY = 'tb_f78e9d4db7476';
 // 考勤记录表
 const ATTENDANCE_TABLE_KEY = 'tb_fa58d498f9bcb';
 // 营业额 ws_app_key
-const REVENUE_WS_APP_KEY = 'b0d285504bb043329b6a4fb95da8ce59';
+const REVENUE_WS_APP_KEY = config.revenue.wsAppKey;
 
 // 门店ID到门店名称的映射
-const STORE_ID_TO_NAME = {
-  3: '930殷高店',
-  4: '930长江西路店',
-  5: '930国和店',
-  7: '930宜川店',
-  8: '930小馆拾光里店',
-  9: '930浦锦路店',
-  13: '930金沙江店',
-  15: '930车站南路店',
-  16: '930中华路店',
-  18: '930柳营路店',
-  19: '930长阳店'
-};
+const STORE_ID_TO_NAME = config.stores.STORE_ID_TO_NAME;
 
 // 默认值
 const DEFAULT_SETTINGS = {
@@ -134,7 +137,7 @@ async function getSettings(storeName) {
   return DEFAULT_SETTINGS;
 }
 
-// 获取当日实收营业额（从营业额 OpenAPI）
+// 获取营业额数据（支持日期范围查询）
 async function getActualRevenue(storeId, date) {
   const postData = {
     page_size: 200,
@@ -162,6 +165,40 @@ async function getActualRevenue(storeId, date) {
   return totalRevenue;
 }
 
+// 批量获取营业额数据（按日期范围）
+async function getActualRevenueByRange(storeId, startDate, endDate) {
+  const postData = {
+    page_size: 200,
+    cursor: '',
+    text_format: 'markdown',
+    filter_conditions: [[
+      { field: 'ws_app.ws_app_key', operator: 'eq', value: REVENUE_WS_APP_KEY },
+      { field: 'doc_group.app_group_id', operator: 'eq', value: 'business_summary' },
+      { field: '统计日期', operator: 'gte', value: startDate },
+      { field: '统计日期', operator: 'lte', value: endDate },
+      { field: '门店ID', operator: 'eq', value: String(storeId) }
+    ]]
+  };
+
+  const result = await callOpenAPI('/open-api/v1/data', postData);
+  if (!result || !result.results) return {};
+
+  // 按日期分组
+  const dateMap = {};
+  for (const item of result.results) {
+    if (item.doc_group?.app_group_id !== 'business_summary') continue;
+    const date = item.content?.统计日期;
+    if (!date) continue;
+
+    if (!dateMap[date]) dateMap[date] = 0;
+    const marketDetails = item.content?.市别明细 || [];
+    for (const market of marketDetails) {
+      dateMap[date] += Number(market.营业额 || 0);
+    }
+  }
+  return dateMap;
+}
+
 // 获取当日考勤记录（从考勤 OpenAPI）
 async function getAttendanceRecords(storeName, date) {
   const allResults = [];
@@ -186,6 +223,42 @@ async function getAttendanceRecords(storeName, date) {
   }
 
   return allResults;
+}
+
+// 批量获取考勤记录（按日期范围）
+async function getAttendanceRecordsByRange(storeName, startDate, endDate) {
+  const allResults = [];
+  let currentPage = 1;
+  const pageSize = 100;
+
+  while (true) {
+    const postData = {
+      table_key: ATTENDANCE_TABLE_KEY,
+      page_size: pageSize,
+      current_page: currentPage,
+      filters: [`所属门店:eq:${storeName}`, `日期:gte:${startDate}`, `日期:lte:${endDate}`],
+      sort: 'created_at:DESC'
+    };
+
+    const data = await callOpenAPI('/open-api/v1/data/records/list', postData);
+    if (!data || !data.results || data.results.length === 0) break;
+
+    allResults.push(...data.results);
+    if (data.results.length < pageSize) break;
+    currentPage++;
+  }
+
+  // 按日期分组
+  const dateMap = {};
+  for (const item of allResults) {
+    const fields = item.fields || {};
+    const date = fields['日期'];
+    if (!date) continue;
+
+    if (!dateMap[date]) dateMap[date] = [];
+    dateMap[date].push(item);
+  }
+  return dateMap;
 }
 
 // 计算有效出勤人次
@@ -230,8 +303,16 @@ function calculateBonus(revenue, attendanceCount, efficiency, bonusRatio) {
   return Math.round(bonus * 100) / 100;
 }
 
-// 获取单个门店的日数据（控制并发数量）
+// 获取单个门店的日数据（批量查询优化）
 async function getStoreDailyData(storeId, storeName, start_date, end_date) {
+  // 检查缓存
+  const cacheKey = getCacheKey(storeId, start_date, end_date);
+  const cachedData = getFromCache(cacheKey);
+  if (cachedData) {
+    console.log(`[DailySummary] Returning cached data for store ${storeId}`);
+    return cachedData;
+  }
+
   // 获取人效标准和奖金比例
   const settings = await getSettings(storeName);
 
@@ -243,36 +324,57 @@ async function getStoreDailyData(storeId, storeName, start_date, end_date) {
     dates.push(d.toISOString().slice(0, 10));
   }
 
-  // 控制并发：每次请求 10 天的数据
-  const CONCURRENCY = 10;
+  // 批量查询营业额和考勤数据（只需2次API调用，而不是 30×2=60次）
+  const [revenueMap, attendanceMap] = await Promise.all([
+    getActualRevenueByRange(storeId, start_date, end_date),
+    getAttendanceRecordsByRange(storeName, start_date, end_date)
+  ]);
+
+  // 组装结果
   const result = [];
+  for (const dateStr of dates) {
+    const revenue = revenueMap[dateStr] || 0;
+    const records = attendanceMap[dateStr] || [];
 
-  for (let i = 0; i < dates.length; i += CONCURRENCY) {
-    const batch = dates.slice(i, i + CONCURRENCY);
-    const batchResults = await Promise.all(batch.map(dateStr =>
-      Promise.all([
-        getActualRevenue(storeId, dateStr),
-        getAttendanceRecords(storeName, dateStr)
-      ]).then(([revenue, records]) => {
-        const frontCount = countValidAttendance(records, 'front');
-        const backCount = countValidAttendance(records, 'back');
-        const frontBonus = calculateBonus(revenue, frontCount, settings.front_efficiency, settings.front_bonus_ratio);
-        const backBonus = calculateBonus(revenue, backCount, settings.back_efficiency, settings.back_bonus_ratio);
+    const frontCount = countValidAttendance(records, 'front');
+    const backCount = countValidAttendance(records, 'back');
+    const frontBonus = calculateBonus(revenue, frontCount, settings.front_efficiency, settings.front_bonus_ratio);
+    const backBonus = calculateBonus(revenue, backCount, settings.back_efficiency, settings.back_bonus_ratio);
 
-        return {
-          date: dateStr,
-          actual_revenue: revenue,
-          front_check_count: frontCount / 2,
-          front_bonus: frontBonus,
-          back_check_count: backCount / 2,
-          back_bonus: backBonus
-        };
-      })
-    ));
-    result.push(...batchResults);
+    result.push({
+      date: dateStr,
+      actual_revenue: revenue,
+      front_check_count: frontCount / 2,
+      front_bonus: frontBonus,
+      back_check_count: backCount / 2,
+      back_bonus: backBonus
+    });
   }
 
+  // 设置缓存
+  setCache(cacheKey, result);
   return result;
+}
+
+// 简单的内存缓存
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+
+function getCacheKey(storeId, startDate, endDate) {
+  return `${storeId}_${startDate}_${endDate}`;
+}
+
+function getFromCache(key) {
+  const item = cache.get(key);
+  if (item && Date.now() - item.timestamp < CACHE_TTL) {
+    return item.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, timestamp: Date.now() });
 }
 
 // GET /api/daily-summary/all?start_date=&end_date= (批量获取所有门店汇总)
@@ -281,6 +383,22 @@ router.get('/all', async (req, res) => {
     const { start_date, end_date } = req.query;
     if (!start_date || !end_date) {
       return res.status(400).json(response(0, 'start_date and end_date required'));
+    }
+
+    // 频率限制检查
+    const rateLimitKey = `all_${start_date}_${end_date}`;
+    if (!rateLimit(rateLimitKey)) {
+      console.log('[DailySummary] Rate limited, returning cached or empty');
+      const cachedData = getFromCache(getCacheKey('all', start_date, end_date));
+      return res.json(response(1, '获取成功', cachedData || []));
+    }
+
+    // 检查缓存
+    const cacheKey = getCacheKey('all', start_date, end_date);
+    const cachedData = getFromCache(cacheKey);
+    if (cachedData) {
+      console.log('[DailySummary] Returning cached data');
+      return res.json(response(1, '获取成功', cachedData));
     }
 
     // 控制门店并发数量：每次只并行获取 3 个门店
@@ -312,7 +430,9 @@ router.get('/all', async (req, res) => {
       }
     }
 
-    res.json(response(1, '获取成功', Object.values(merged)));
+    const result = Object.values(merged);
+    setCache(cacheKey, result);
+    res.json(response(1, '获取成功', result));
   } catch (err) {
     console.error('[DailySummary] /all Error:', err.message);
     res.status(500).json(response(0, err.message));

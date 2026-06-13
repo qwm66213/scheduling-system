@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
+const config = require('../config');
 
 router.use(authMiddleware);
 
@@ -18,25 +19,13 @@ function response(status, errmsg, data = null) {
 
 // OpenAPI 配置
 const EFFICIENCY_API = {
-  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
-  userId: '{{Emoo-User-Id}}',
+  token: config.openapi.token,
+  userId: config.openapi.userId,
   tableKey: 'tb_f78e9d4db7476'
 };
 
 // 门店ID到门店名称的映射
-const STORE_ID_TO_NAME = {
-  3: '930殷高店',
-  4: '930长江西路店',
-  5: '930国和店',
-  7: '930宜川店',
-  8: '930小馆拾光里店',
-  9: '930浦锦路店',
-  13: '930金沙江店',
-  15: '930车站南路店',
-  16: '930中华路店',
-  18: '930柳营路店',
-  19: '930长阳店'
-};
+const STORE_ID_TO_NAME = config.stores.STORE_ID_TO_NAME;
 
 // 默认值
 const DEFAULT_VALUES = {

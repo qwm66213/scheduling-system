@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const http = require('http');
 const authMiddleware = require('../middleware/auth');
+const config = require('../config');
 
 router.use(authMiddleware);
 
@@ -16,27 +17,50 @@ function response(status, errmsg, data = null) {
   return result;
 }
 
+// 简单的内存缓存
+const cache = new Map();
+const CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+
+function getCacheKey(prefix, params) {
+  return `${prefix}_${JSON.stringify(params)}`;
+}
+
+function getFromCache(key) {
+  const item = cache.get(key);
+  if (item && Date.now() - item.timestamp < CACHE_TTL) {
+    return item.data;
+  }
+  cache.delete(key);
+  return null;
+}
+
+function setCache(key, data) {
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
+// 请求频率限制（防抖）
+const requestTimestamps = new Map();
+const RATE_LIMIT_WINDOW = 2000; // 2秒内不允许重复请求
+
+function rateLimit(key) {
+  const now = Date.now();
+  const lastRequest = requestTimestamps.get(key);
+  if (lastRequest && now - lastRequest < RATE_LIMIT_WINDOW) {
+    return false; // 被限制
+  }
+  requestTimestamps.set(key, now);
+  return true; // 允许请求
+}
+
 // OpenAPI 配置
 const ATTENDANCE_API = {
-  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
-  userId: '{{Emoo-User-Id}}',
+  token: config.openapi.token,
+  userId: config.openapi.userId,
   tableKey: 'tb_fa58d498f9bcb'
 };
 
 // 门店ID到门店名称的映射
-const STORE_ID_TO_NAME = {
-  3: '930殷高店',
-  4: '930长江西路店',
-  5: '930国和店',
-  7: '930宜川店',
-  8: '930小馆拾光里店',
-  9: '930浦锦路店',
-  13: '930金沙江店',
-  15: '930车站南路店',
-  16: '930中华路店',
-  18: '930柳营路店',
-  19: '930长阳店'
-};
+const STORE_ID_TO_NAME = config.stores.STORE_ID_TO_NAME;
 
 // 门店名称到缩写的映射
 const STORE_NAME_TO_ABBREV = {
@@ -186,6 +210,22 @@ router.get('/', async (req, res) => {
       return res.status(400).json(response(0, 'month required'));
     }
 
+    // 频率限制检查
+    const rateLimitKey = `attendance_${req.query.store_id}_${month}`;
+    if (!rateLimit(rateLimitKey)) {
+      console.log('[Attendance] Rate limited, returning cached or empty');
+      const cachedData = getFromCache(getCacheKey('attendance', { store_id: req.query.store_id, month }));
+      return res.json(response(1, '获取成功', cachedData || []));
+    }
+
+    // 检查缓存
+    const cacheKey = getCacheKey('attendance', { store_id: req.query.store_id, month });
+    const cachedData = getFromCache(cacheKey);
+    if (cachedData) {
+      console.log('[Attendance] Returning cached data');
+      return res.json(response(1, '获取成功', cachedData));
+    }
+
     // 根据 month 计算 start_date 和 end_date
     const [year, m] = month.split('-').map(Number);
     const start_date = `${year}-${String(m).padStart(2, '0')}-01`;
@@ -254,6 +294,7 @@ router.get('/', async (req, res) => {
       }
     }
 
+    setCache(cacheKey, result);
     res.json(response(1, '获取成功', result));
   } catch (err) {
     console.error('[Attendance] Error:', err.message);

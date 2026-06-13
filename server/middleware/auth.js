@@ -2,6 +2,17 @@ const { verifyToken } = require('../utils/auth');
 const { findUserByRecordKey, findUserByUsername } = require('../utils/auth-openapi');
 
 /**
+ * 统一响应格式
+ */
+function response(status, errmsg, data = null) {
+  const result = { status, errmsg };
+  if (data !== null) {
+    result.data = data;
+  }
+  return result;
+}
+
+/**
  * 认证中间件：验证 JWT Token 并注入用户信息
  */
 async function authMiddleware(req, res, next) {
@@ -17,7 +28,7 @@ async function authMiddleware(req, res, next) {
   const legacyUserId = req.headers['x-user-id'];
 
   if (!token && !legacyUserId) {
-    return res.status(401).json({ error: '未登录' });
+    return res.status(401).json(response(0, '未登录'));
   }
 
   try {
@@ -27,7 +38,7 @@ async function authMiddleware(req, res, next) {
       // JWT Token 验证
       const decoded = verifyToken(token);
       if (!decoded) {
-        return res.status(401).json({ error: '登录已过期，请重新登录' });
+        return res.status(401).json(response(0, '登录已过期，请重新登录'));
       }
       userId = decoded.record_key || decoded.id; // 支持新旧两种ID格式
     } else {
@@ -39,11 +50,11 @@ async function authMiddleware(req, res, next) {
     const user = await findUserByRecordKey(userId) || await findUserByUsername(userId);
 
     if (!user) {
-      return res.status(401).json({ error: '用户不存在或已禁用' });
+      return res.status(401).json(response(0, '用户不存在或已禁用'));
     }
 
     if (!user.is_active) {
-      return res.status(401).json({ error: '用户不存在或已禁用' });
+      return res.status(401).json(response(0, '用户不存在或已禁用'));
     }
 
     req.user = user;
@@ -65,7 +76,7 @@ async function authMiddleware(req, res, next) {
     next();
   } catch (err) {
     console.error('[Auth] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json(response(0, err.message));
   }
 }
 

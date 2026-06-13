@@ -4,11 +4,12 @@
  */
 
 const http = require('http');
+const config = require('../config');
 
 // OpenAPI 基础配置
 const OPEN_API_BASE = {
-  token: 'emoo_W7ExdLzLIff1VI8WEFHV8y3a_nb1mOGD6_ZrRroA',
-  userId: '{{Emoo-User-Id}}',
+  token: config.openapi.token,
+  userId: config.openapi.userId,
   hostname: 'localhost'
 };
 

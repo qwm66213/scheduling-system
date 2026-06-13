@@ -70,8 +70,6 @@ api.interceptors.response.use(
 export const getRevenue = (params) => api.get('/revenue', { params }).then(r => r.data)
 export const saveRevenue = (data) => api.post('/revenue', data).then(r => r.data)
 export const updateRevenue = (id, data) => api.put(`/revenue/${id}`, data).then(r => r.data)
-export const deleteRevenue = (id) => api.delete(`/revenue/${id}`).then(r => r.data)
-export const batchImportRevenue = (records) => api.post('/revenue/batch', { records }).then(r => r.data)
 
 // Staff
 export const getStaff = (params) => api.get('/staff', { params }).then(r => r.data)
@@ -84,7 +82,6 @@ export const getScheduleSummary = (params) => api.get('/schedule/summary', { par
 // Attendance / 考勤记录
 export const getAttendance = (params) => api.get('/attendance', { params }).then(r => r.data)
 export const batchSaveAttendance = (records) => api.post('/attendance/batch', { records }).then(r => r.data)
-export const updateAttendance = (id, data) => api.put(`/attendance/${id}`, data).then(r => r.data)
 export const getAttendanceSummary = (params) => api.get('/attendance/summary', { params }).then(r => r.data)
 
 // Dashboard
