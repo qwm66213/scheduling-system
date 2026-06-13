@@ -115,28 +115,36 @@ watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
       </div>
     </div>
 
-    <div class="table-wrap">
-      <el-table :data="pagedData" v-loading="loading" stripe border empty-text="暂无数据" style="width: 100%;">
-        <el-table-column prop="date" label="日期" min-width="100" />
-        <el-table-column prop="actual_revenue" label="实收营业额" min-width="110" align="right">
-          <template #default="{ row }">¥{{ fmt(row.actual_revenue) }}</template>
-        </el-table-column>
-        <el-table-column prop="front_check_count" label="前厅出勤人数" min-width="110" align="center" />
-        <el-table-column prop="front_bonus" label="前厅奖金数" min-width="100" align="right">
-          <template #default="{ row }">
-            <span v-if="row.front_bonus === null">-</span>
-            <span v-else :style="{ color: row.front_bonus > 0 ? '#67c23a' : row.front_bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.front_bonus) }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="back_check_count" label="后厨出勤人数" min-width="110" align="center" />
-        <el-table-column prop="back_bonus" label="后厨奖金数" min-width="100" align="right">
-          <template #default="{ row }">
-            <span v-if="row.back_bonus === null">-</span>
-            <span v-else :style="{ color: row.back_bonus > 0 ? '#67c23a' : row.back_bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.back_bonus) }}</span>
-          </template>
-        </el-table-column>
-      </el-table>
-      <div v-if="totalCount > 0" style="display: flex; justify-content: flex-end; margin-top: 12px;">
+    <div class="page-card">
+      <div class="page-card__header">
+        <div>
+          <div class="page-card__title">每日奖金汇总</div>
+          <div class="page-card__desc">{{ monthInfo.label }} · 共 {{ totalCount }} 条记录</div>
+        </div>
+      </div>
+      <div class="page-card__body--flush">
+        <el-table :data="pagedData" v-loading="loading" stripe empty-text="暂无数据" style="width: 100%;">
+          <el-table-column prop="date" label="日期" min-width="100" />
+          <el-table-column prop="actual_revenue" label="实收营业额" min-width="110" align="right">
+            <template #default="{ row }">¥{{ fmt(row.actual_revenue) }}</template>
+          </el-table-column>
+          <el-table-column prop="front_check_count" label="前厅出勤人数" min-width="110" align="center" />
+          <el-table-column prop="front_bonus" label="前厅奖金数" min-width="100" align="right">
+            <template #default="{ row }">
+              <span v-if="row.front_bonus === null">-</span>
+              <span v-else :style="{ color: row.front_bonus > 0 ? 'var(--success)' : row.front_bonus < 0 ? 'var(--destructive)' : 'var(--text-primary)' }">{{ fmt(row.front_bonus) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="back_check_count" label="后厨出勤人数" min-width="110" align="center" />
+          <el-table-column prop="back_bonus" label="后厨奖金数" min-width="100" align="right">
+            <template #default="{ row }">
+              <span v-if="row.back_bonus === null">-</span>
+              <span v-else :style="{ color: row.back_bonus > 0 ? 'var(--success)' : row.back_bonus < 0 ? 'var(--destructive)' : 'var(--text-primary)' }">{{ fmt(row.back_bonus) }}</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+      <div v-if="totalCount > 0" class="page-card__footer">
         <el-pagination
           v-model:current-page="currentPage"
           :page-size="pageSize"
@@ -151,57 +159,6 @@ watch([currentYear, currentMonth, selectedStoreId], () => { loadData() })
 
 <style scoped>
 .summary-page {
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border-radius: 4px;
-}
-.time-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  flex-shrink: 0;
-}
-.time-card {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 10px 14px;
-  text-align: center;
-  transition: all 0.2s;
-}
-.time-card.active {
-  background: #ecf5ff;
-  border: 1px solid #b3d8ff;
-  cursor: pointer;
-}
-.time-card-label {
-  font-size: 11px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.time-card-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 24px;
-}
-.time-card-sub {
-  font-size: 11px;
-  color: #909399;
-  margin-top: 2px;
-}
-.time-card.active .time-card-label { color: #409eff; }
-.time-card.active .time-card-value { color: #409eff; }
-.card-arrow {
-  padding: 4px 8px;
-  color: #409eff !important;
-}
-.table-wrap {
-  padding: 0 16px 16px;
+  min-height: calc(100vh - 60px - 32px);
 }
 </style>

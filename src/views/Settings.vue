@@ -62,9 +62,14 @@ onMounted(() => {
 
 <template>
   <div class="settings-page" v-loading="loading">
-    <div class="settings-card">
-      <div class="settings-title">人效标准设置</div>
-      <div class="settings-body">
+    <div class="page-card" style="max-width: 520px;">
+      <div class="page-card__header">
+        <div>
+          <div class="page-card__title">人效标准设置</div>
+          <div class="page-card__desc">设置各门店前厅/后厨的人效标准和奖金比例</div>
+        </div>
+      </div>
+      <div class="page-card__body">
         <div class="setting-row">
           <div class="setting-label">前厅人效标准</div>
           <el-input-number v-model="frontEfficiency" :min="0" :step="100" :controls="false" size="large" style="width: 200px;" />
@@ -82,7 +87,7 @@ onMounted(() => {
           <el-input-number v-model="backBonusRatio" :precision="0" :controls="false" size="large" style="width: 200px;" />
         </div>
       </div>
-      <div class="settings-footer">
+      <div class="page-card__footer">
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </div>
     </div>
@@ -91,43 +96,19 @@ onMounted(() => {
 
 <style scoped>
 .settings-page {
-  background: #fff;
-  border-radius: 4px;
   min-height: calc(100vh - 60px - 32px);
-  padding: 20px;
-}
-.settings-card {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  overflow: hidden;
-  max-width: 500px;
-}
-.settings-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  padding: 14px 20px;
-  border-bottom: 1px solid #ebeef5;
-}
-.settings-body {
-  padding: 24px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
 }
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+.setting-row + .setting-row {
+  margin-top: 20px;
+}
 .setting-label {
   font-size: 14px;
-  color: #303133;
+  color: var(--text-primary);
   font-weight: 500;
-}
-.settings-footer {
-  padding: 14px 20px;
-  border-top: 1px solid #ebeef5;
-  text-align: right;
 }
 </style>

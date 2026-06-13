@@ -486,16 +486,17 @@ watch(selectedStoreId, async () => {
       </div>
     </div>
 
-    <div class="big-tabs">
-      <div class="big-tab" :class="{ active: activeTab === '前厅' }" @click="activeTab = '前厅'">
-        前厅 <span class="tab-count">{{ frontStaffCount }}</span>
+    <div class="page-card">
+      <div class="big-tabs">
+        <div class="big-tab" :class="{ active: activeTab === '前厅' }" @click="activeTab = '前厅'">
+          前厅 <span class="tab-count">{{ frontStaffCount }}</span>
+        </div>
+        <div class="big-tab" :class="{ active: activeTab === '后厨' }" @click="activeTab = '后厨'">
+          后厨 <span class="tab-count">{{ backStaffCount }}</span>
+        </div>
       </div>
-      <div class="big-tab" :class="{ active: activeTab === '后厨' }" @click="activeTab = '后厨'">
-        后厨 <span class="tab-count">{{ backStaffCount }}</span>
-      </div>
-    </div>
 
-    <div class="grid-wrap">
+      <div class="page-card__body--flush grid-wrap">
       <div class="grid-container" :style="{ gridTemplateColumns: gridTemplate }">
         <!-- 表头第一行 -->
         <div class="g-cell g-header g-name" style="grid-row:1;grid-column:1;">姓名</div>
@@ -558,6 +559,7 @@ watch(selectedStoreId, async () => {
         </div>
       </div>
     </div>
+    </div>
 
     <Teleport to="body">
       <div
@@ -601,97 +603,15 @@ watch(selectedStoreId, async () => {
   min-height: calc(100vh - 60px - 32px);
   display: flex;
   flex-direction: column;
-  background: #fff;
-  border-radius: 4px;
-}
-.time-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  flex-shrink: 0;
-}
-.time-card {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 10px 14px;
-  text-align: center;
-  transition: all 0.2s;
-}
-.time-card.active {
-  background: #ecf5ff;
-  border: 1px solid #b3d8ff;
-  cursor: pointer;
-}
-.time-card-label {
-  font-size: 11px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.time-card-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 24px;
-}
-.time-card-sub {
-  font-size: 11px;
-  color: #909399;
-  margin-top: 2px;
-}
-.time-card.active .time-card-label {
-  color: #409eff;
-}
-.time-card.active .time-card-value {
-  color: #409eff;
-}
-.card-arrow {
-  padding: 4px 8px;
-  color: #409eff !important;
+  background: var(--bg-card);
+  border-radius: var(--radius);
 }
 .week-dropdown-text {
   cursor: pointer;
   padding: 0 4px;
 }
 .week-dropdown-text:hover {
-  color: var(--el-color-primary);
-}
-.big-tabs {
-  display: flex;
-  border-bottom: 2px solid #e4e7ed;
-  flex-shrink: 0;
-}
-.big-tab {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: #909399;
-  background: #fafafa;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-  user-select: none;
-}
-.big-tab:hover { color: #606266; }
-.big-tab.active {
-  color: #409eff;
-  background: #fff;
-  border-bottom-color: #409eff;
-  font-weight: 600;
-}
-.tab-count {
-  font-size: 12px;
-  color: #c0c4cc;
-  margin-left: 2px;
-}
-.big-tab.active .tab-count {
-  color: #a0cfff;
+  color: var(--gold);
 }
 .grid-wrap {
   flex: 1;
@@ -703,17 +623,17 @@ watch(selectedStoreId, async () => {
   grid-auto-rows: minmax(40px, auto);
 }
 .g-cell {
-  border: 1px solid #ebeef5;
+  border: 1px solid var(--border);
   padding: 0;
   text-align: center;
-  color: #303133;
+  color: var(--text-primary);
   min-height: 0;
   box-sizing: border-box;
 }
 .g-header {
-  background: #fafafa;
+  background: var(--bg-secondary);
   font-weight: 700;
-  color: #303133;
+  color: var(--text-primary);
   position: sticky;
   top: 0;
   z-index: 2;
@@ -750,104 +670,38 @@ watch(selectedStoreId, async () => {
 .g-sub {
   font-size: 14px;
   font-weight: 700;
-  color: #303133;
+  color: var(--text-primary);
 }
 .g-period {
   font-size: 14px;
-  color: #303133;
+  color: var(--text-primary);
   font-weight: 700;
 }
 .day-header { font-size: 14px; font-weight: 700; line-height: 1.4; }
-.day-date { font-size: 14px; color: #909399; line-height: 1.3; }
+.day-date { font-size: 14px; color: var(--text-muted); line-height: 1.3; }
 .g-data {
   cursor: pointer;
   user-select: none;
   padding: 5px 4px;
   min-height: 40px;
-  transition: background 0.15s;
+  transition: background var(--transition-fast);
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
 }
-.g-data:hover { background: #f5f7fa; }
+.g-data:hover { background: var(--bg-secondary); }
 .cell-text {
   font-size: 15px;
   font-weight: 600;
-  color: #303133;
+  color: var(--text-primary);
 }
 .g-empty {
   text-align: center;
-  color: #999;
+  color: var(--text-muted);
   padding: 40px 0;
   grid-column: 1 / -1;
 }
-</style>
-
-<style>
-.cell-dropdown {
-  position: fixed;
-  z-index: 3000;
-  background: #fff;
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-  border: 1px solid #e4e7ed;
-  min-width: 140px;
-  padding: 6px 0;
-}
-.dropdown-section { padding: 2px 0; }
-.dropdown-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 16px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #303133;
-  transition: background 0.15s;
-}
-.dropdown-item:hover { background: #f5f7fa; }
-.dropdown-symbol {
-  font-weight: 700;
-  font-size: 16px;
-  width: 20px;
-  text-align: center;
-}
-.dropdown-desc { color: #606266; }
-.dropdown-divider {
-  height: 1px;
-  background: #ebeef5;
-  margin: 4px 12px;
-}
-.dropdown-title {
-  font-size: 11px;
-  color: #909399;
-  padding: 2px 16px 6px;
-}
-.store-list {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 4px;
-  padding: 0 10px 8px;
-}
-.store-item {
-  text-align: center;
-  padding: 5px 0;
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 13px;
-  font-weight: 500;
-  color: #303133;
-  transition: all 0.15s;
-}
-.store-item:hover { background: #ecf5ff; color: #409eff; }
-
-/* 小时工表格 */
-.hourly-grid {
-  margin-top: 16px;
-}
-
-/* 小时工输入框 */
 .hours-cell-input {
   width: 100%;
   height: 100%;
@@ -856,12 +710,12 @@ watch(selectedStoreId, async () => {
   text-align: center;
   font-size: 14px;
   font-weight: 500;
-  color: #303133;
+  color: var(--text-primary);
   outline: none;
   cursor: pointer;
 }
 .hours-cell-input:focus {
-  background: #ecf5ff;
+  background: var(--gold-soft);
 }
 .hours-cell-input::-webkit-inner-spin-button,
 .hours-cell-input::-webkit-outer-spin-button {

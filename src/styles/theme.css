@@ -1,0 +1,390 @@
+/*
+ * 930私房菜运营平台 设计系统
+ * 侧边栏：墨黑底色 + 金黄点缀
+ * 内容区：米白背景
+ * 完全对齐 cuisine-ops 色值（oklch → hex）
+ */
+
+:root {
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+
+  /* ========== 米白色系背景 ========== */
+  --bg-primary: #f7f5f0;
+  --bg-card: #fdfcf9;
+  --bg-secondary: #eeece6;
+
+  /* ========== 前景文字 ========== */
+  --text-primary: #1a1a1e;
+  --text-secondary: #46464d;
+  --text-muted: #78788a;
+
+  /* ========== 金黄主色 #c9a84c ========== */
+  --gold: #c9a84c;
+  --gold-bright: #d9b860;
+  --gold-soft: rgba(201, 168, 76, 0.14);
+  --gold-gradient: linear-gradient(135deg, #d9b860 0%, #c9a84c 60%, #8a6e2f 100%);
+  --gold-glow: 0 0 40px rgba(201, 168, 76, 0.25);
+
+  /* ========== 语义色 ========== */
+  --success: #2d9d6f;
+  --success-bg: rgba(45, 157, 111, 0.1);
+  --destructive: #c23b3b;
+  --destructive-bg: rgba(194, 59, 59, 0.1);
+  --warning: #c79a2e;
+
+  /* ========== 边框 ========== */
+  --border: rgba(128, 101, 53, 0.18);
+  --input-bg: #e4e1da;
+
+  /* ========== 侧边栏（墨黑 + 金） ========== */
+  --sidebar-bg: #171920;
+  --sidebar-text: #b5b3ae;
+  --sidebar-text-active: #f0ece3;
+  --sidebar-primary: #d9b860;
+  --sidebar-accent: #22242c;
+  --sidebar-accent-text: #e8e0c9;
+  --sidebar-border: rgba(128, 101, 53, 0.22);
+  --sidebar-width: 256px;
+  --sidebar-width-collapsed: 48px;
+
+  /* ========== 顶栏 ========== */
+  --header-height: 64px;
+
+  /* ========== 过渡 ========== */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.3s ease;
+
+  /* ========== 字体 ========== */
+  --font-sans: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'SimHei',
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', 'SimHei',
+    -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ========== 基础样式 ========== */
+* {
+  border-color: var(--border);
+}
+
+html, body {
+  font-family: var(--font-sans);
+}
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* ========== 金色渐变文字 ========== */
+.gold-gradient-text {
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ========== 金色光晕 ========== */
+.gold-glow {
+  box-shadow: var(--gold-glow);
+}
+
+/* ========== 金色边框 ========== */
+.gold-border {
+  border: 1px solid rgba(201, 168, 76, 0.4);
+}
+
+/* ========== Element Plus 主题覆盖（金色系） ========== */
+:root {
+  --el-color-primary: #c9a84c;
+  --el-color-primary-light-3: #d4b86a;
+  --el-color-primary-light-5: #dfc888;
+  --el-color-primary-light-7: #e9d8a6;
+  --el-color-primary-light-8: #f0e3ba;
+  --el-color-primary-light-9: #f7efd8;
+  --el-color-primary-dark-2: #a68a3d;
+  --el-color-success: #2d9d6f;
+  --el-color-warning: #c79a2e;
+  --el-color-danger: #c23b3b;
+  --el-color-info: #78788a;
+  --el-bg-color: #fdfcf9;
+  --el-bg-color-page: #f7f5f0;
+  --el-text-color-primary: #1a1a1e;
+  --el-text-color-regular: #46464d;
+  --el-text-color-secondary: #78788a;
+  --el-border-color: rgba(128, 101, 53, 0.18);
+  --el-border-color-light: rgba(128, 101, 53, 0.12);
+  --el-fill-color-light: #eeece6;
+  --el-fill-color-lighter: #f5f3ed;
+  --el-fill-color-blank: #fdfcf9;
+  --el-mask-color: rgba(247, 245, 240, 0.8);
+}
+
+/* ========== 共用组件：time-cards ========== */
+.time-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  flex-shrink: 0;
+}
+.time-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  text-align: center;
+  transition: all var(--transition-fast);
+}
+.time-card.active {
+  background: var(--gold-soft);
+  border: 1px solid rgba(201, 168, 76, 0.3);
+  cursor: pointer;
+}
+.time-card-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.time-card-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 24px;
+}
+.time-card-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.time-card.active .time-card-label { color: var(--gold); }
+.time-card.active .time-card-value { color: var(--gold); }
+.card-arrow {
+  padding: 4px 8px;
+  color: var(--gold) !important;
+}
+
+/* ========== 共用组件：big-tabs ========== */
+.big-tabs {
+  display: flex;
+  border-bottom: 2px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg-card);
+}
+.big-tab {
+  flex: 1;
+  text-align: center;
+  padding: 12px 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: all var(--transition-fast);
+  user-select: none;
+}
+.big-tab:hover { color: var(--text-secondary); }
+.big-tab.active {
+  color: var(--gold);
+  background: var(--bg-card);
+  border-bottom-color: var(--gold);
+  font-weight: 600;
+}
+.tab-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 2px;
+}
+.big-tab.active .tab-count {
+  color: rgba(201, 168, 76, 0.6);
+}
+
+/* ========== 共用组件：下拉菜单（Teleport） ========== */
+.cell-dropdown {
+  position: fixed;
+  z-index: 3000;
+  background: var(--bg-card);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid var(--border);
+  min-width: 140px;
+  padding: 6px 0;
+}
+.dropdown-section { padding: 2px 0; }
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  transition: background var(--transition-fast);
+}
+.dropdown-item:hover { background: var(--bg-secondary); }
+.dropdown-symbol {
+  font-weight: 700;
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+.dropdown-desc { color: var(--text-secondary); }
+.dropdown-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 12px;
+}
+.dropdown-title {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 16px 6px;
+}
+.store-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  padding: 0 10px 8px;
+}
+.store-item {
+  text-align: center;
+  padding: 5px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: all var(--transition-fast);
+}
+.store-item:hover { background: var(--gold-soft); color: var(--gold); }
+
+/* ========== 共用组件：内容区卡片（精确对齐 cuisine-ops Card p-6 rounded-xl） ========== */
+.page-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg); /* 12px = Tailwind rounded-xl */
+  overflow: hidden;
+}
+.page-card + .page-card {
+  margin-top: 20px; /* gap-5 = 20px */
+}
+.page-card__header {
+  padding: 24px; /* p-6 = 24px */
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-card__title {
+  font-size: 20px; /* text-xl = 20px */
+  font-weight: 600;
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+.page-card__desc {
+  font-size: 12px; /* text-xs = 12px */
+  color: var(--text-muted);
+  margin-top: 4px; /* mt-1 = 4px */
+}
+.page-card__body {
+  padding: 24px; /* p-6 = 24px */
+}
+.page-card__body--flush {
+  padding: 0;
+}
+.page-card__footer {
+  padding: 16px 24px;
+  display: flex;
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.page-card__empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 60px 0;
+}
+
+/* ========== 共用组件：页面标题区（精确对齐 cuisine-ops PageHeading） ========== */
+.page-heading {
+  margin-bottom: 24px; /* mb-6 = 24px */
+}
+.page-heading__title {
+  font-size: 24px; /* text-2xl = 24px */
+  font-weight: 600;
+  font-family: var(--font-display);
+  color: var(--text-primary);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+.page-heading__subtitle {
+  font-size: 13px; /* text-sm = 13px (approx) */
+  color: var(--text-muted);
+  margin-top: 4px; /* mt-1 = 4px */
+}
+.page-heading__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px; /* gap-2 = 8px */
+  margin-top: 12px; /* mt-3 = 12px */
+}
+
+/* ========== 共用组件：搜索/筛选栏 ========== */
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+/* ========== Element Plus 表格主题覆盖 ========== */
+.el-table {
+  --el-table-border-color: var(--border);
+  --el-table-header-bg-color: var(--bg-secondary);
+  --el-table-header-text-color: var(--text-secondary);
+  --el-table-text-color: var(--text-primary);
+  --el-table-row-hover-bg-color: rgba(201, 168, 76, 0.06);
+  --el-table-current-row-bg-color: var(--gold-soft);
+  --el-table-bg-color: var(--bg-card);
+  --el-table-tr-bg-color: var(--bg-card);
+  --el-table-expanded-cell-bg-color: var(--bg-card);
+  font-size: 13px;
+}
+.el-table th.el-table__cell {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
+  background: var(--bg-secondary);
+}
+.el-table--border .el-table__inner-wrapper::after,
+.el-table--border::after,
+.el-table--border::before,
+.el-table__inner-wrapper::before {
+  border-color: var(--border);
+}
+
+/* ========== Element Plus 分页主题覆盖 ========== */
+.el-pagination {
+  --el-pagination-button-color: var(--text-secondary);
+  --el-pagination-hover-color: var(--gold);
+}
+.el-pagination .is-active {
+  background: var(--gold) !important;
+  color: #fff !important;
+}

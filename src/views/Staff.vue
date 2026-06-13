@@ -59,7 +59,6 @@ watch(selectedStoreId, () => {
 
 <template>
   <div class="staff-page">
-    <!-- 时间卡片 -->
     <div class="time-cards">
       <div class="time-card">
         <div class="time-card-label">今天是</div>
@@ -68,74 +67,44 @@ watch(selectedStoreId, () => {
       </div>
     </div>
 
-    <!-- 空数据时不显示表格 -->
-    <el-table
-      v-if="tableData.length > 0"
-      :data="tableData"
-      v-loading="loading"
-      stripe
-      border
-      style="width: 100%;"
-    >
-      <el-table-column prop="store" label="所属门店" min-width="120" />
-      <el-table-column prop="name" label="姓名" min-width="100" />
-      <el-table-column prop="position" label="岗位" min-width="100" />
-      <el-table-column prop="workName" label="工作名" min-width="100" />
-    </el-table>
-    <!-- 加载中状态 -->
-    <div v-else-if="loading" v-loading="loading" style="min-height: 200px;"></div>
-
-    <!-- 分页 -->
-    <div v-if="total > 0" style="margin-top: 16px; display: flex; justify-content: flex-end;">
-      <el-pagination
-        v-model:current-page="currentPage"
-        :page-size="pageSize"
-        :total="total"
-        layout="total, prev, pager, next"
-        @current-change="handlePageChange"
-      />
+    <div class="page-card">
+      <div class="page-card__header">
+        <div>
+          <div class="page-card__title">员工列表</div>
+          <div class="page-card__desc">共 {{ total }} 名员工</div>
+        </div>
+      </div>
+      <div class="page-card__body--flush">
+        <el-table
+          v-if="tableData.length > 0"
+          :data="tableData"
+          v-loading="loading"
+          stripe
+          style="width: 100%;"
+        >
+          <el-table-column prop="store" label="所属门店" min-width="120" />
+          <el-table-column prop="name" label="姓名" min-width="100" />
+          <el-table-column prop="position" label="岗位" min-width="100" />
+          <el-table-column prop="workName" label="工作名" min-width="100" />
+        </el-table>
+        <div v-else-if="loading" v-loading="loading" style="min-height: 200px;"></div>
+        <div v-else class="page-card__empty">暂无员工数据</div>
+      </div>
+      <div v-if="total > 0" class="page-card__footer">
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="total"
+          layout="total, prev, pager, next"
+          @current-change="handlePageChange"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <style scoped>
 .staff-page {
-  background: #fff;
-  border-radius: 4px;
-  padding: 16px;
-}
-
-.time-cards {
-  display: grid;
-  grid-template-columns: repeat(1, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  background: #fff;
-  margin-bottom: 12px;
-}
-
-.time-card {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 10px 14px;
-  text-align: center;
-}
-
-.time-card-label {
-  font-size: 11px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-
-.time-card-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.time-card-sub {
-  font-size: 11px;
-  color: #909399;
-  margin-top: 2px;
+  min-height: calc(100vh - 60px - 32px);
 }
 </style>

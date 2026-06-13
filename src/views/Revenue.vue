@@ -273,11 +273,11 @@ const monthChartOption = computed(() => {
     series: [
       {
         name: '实收', type: 'bar', data: actualTotals, barWidth: '30%',
-        itemStyle: { borderRadius: [3, 3, 0, 0], color: '#409eff' }
+        itemStyle: { borderRadius: [3, 3, 0, 0], color: '#c9a84c' }
       },
       {
         name: '预估', type: 'bar', data: forecastTotals, barWidth: '30%',
-        itemStyle: { borderRadius: [3, 3, 0, 0], color: '#e6a23c' }
+        itemStyle: { borderRadius: [3, 3, 0, 0], color: '#8a6e2f' }
       }
     ]
   }
@@ -376,66 +376,76 @@ onMounted(() => {
       </div>
     </div>
 
-    <div class="big-tabs">
-      <div class="big-tab" :class="{ active: activeTab === 'actual' }" @click="activeTab = 'actual'">
-        实际午晚市
+    <div class="page-card">
+      <div class="big-tabs">
+        <div class="big-tab" :class="{ active: activeTab === 'actual' }" @click="activeTab = 'actual'">
+          实际午晚市
+        </div>
+        <div class="big-tab" :class="{ active: activeTab === 'forecast' }" @click="activeTab = 'forecast'">
+          预估午晚市
+        </div>
       </div>
-      <div class="big-tab" :class="{ active: activeTab === 'forecast' }" @click="activeTab = 'forecast'">
-        预估午晚市
+
+      <!-- 预估月历 -->
+      <div v-if="activeTab === 'forecast'" class="page-card__body--flush" v-loading="loading">
+        <div class="calendar">
+          <div class="cal-header">
+            <div class="cal-weekday" v-for="w in weekDays" :key="w">{{ w }}</div>
+          </div>
+          <div class="cal-body">
+            <div class="cal-cell" v-for="(item, idx) in forecastCalendarDays" :key="idx"
+              :class="{ empty: !item }"
+              :style="item ? cellBg(item.total) : ''"
+              @click="item && openForecastDialog(item.date)">
+              <template v-if="item">
+                <div class="cell-day" :class="{ today: item.date === new Date().toISOString().slice(0,10) }">{{ item.day }}</div>
+                <div class="cell-content">
+                  <div class="cell-row lunch-color">午 ¥{{ formatMoney(item.lunch?.total_revenue || 0) }}</div>
+                  <div class="cell-row dinner-color">晚 ¥{{ formatMoney(item.dinner?.total_revenue || 0) }}</div>
+                  <div class="cell-row total-row">合 ¥{{ formatMoney(item.total) }}</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 实际月历 -->
+      <div v-if="activeTab === 'actual'" class="page-card__body--flush" v-loading="loading">
+        <div class="calendar">
+          <div class="cal-header">
+            <div class="cal-weekday" v-for="w in weekDays" :key="w">{{ w }}</div>
+          </div>
+          <div class="cal-body">
+            <div class="cal-cell" v-for="(item, idx) in actualCalendarDays" :key="idx"
+              :class="{ empty: !item }"
+              :style="item ? cellBg(item.total) : ''">
+              <template v-if="item">
+                <div class="cell-day" :class="{ today: item.date === new Date().toISOString().slice(0,10) }">{{ item.day }}</div>
+                <div class="cell-content">
+                  <div class="cell-row lunch-color">午 ¥{{ formatMoney(item.lunch?.total_revenue || 0) }}</div>
+                  <div class="cell-row dinner-color">晚 ¥{{ formatMoney(item.dinner?.total_revenue || 0) }}</div>
+                  <div class="cell-row total-row">合 ¥{{ formatMoney(item.total) }}</div>
+                </div>
+              </template>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- 预估月历 -->
-    <template v-if="activeTab === 'forecast'">
-      <div class="calendar" v-loading="loading">
-        <div class="cal-header">
-          <div class="cal-weekday" v-for="w in weekDays" :key="w">{{ w }}</div>
-        </div>
-        <div class="cal-body">
-          <div class="cal-cell" v-for="(item, idx) in forecastCalendarDays" :key="idx"
-            :class="{ empty: !item }"
-            :style="item ? cellBg(item.total) : ''"
-            @click="item && openForecastDialog(item.date)">
-            <template v-if="item">
-              <div class="cell-day" :class="{ today: item.date === new Date().toISOString().slice(0,10) }">{{ item.day }}</div>
-              <div class="cell-content">
-                <div class="cell-row lunch-color">午 ¥{{ formatMoney(item.lunch?.total_revenue || 0) }}</div>
-                <div class="cell-row dinner-color">晚 ¥{{ formatMoney(item.dinner?.total_revenue || 0) }}</div>
-                <div class="cell-row total-row">合 ¥{{ formatMoney(item.total) }}</div>
-              </div>
-            </template>
-          </div>
+    <!-- 月度柱状图 -->
+    <div class="page-card">
+      <div class="page-card__header">
+        <div>
+          <div class="page-card__title">每日营业额对比</div>
+          <div class="page-card__desc">{{ currentYear }}年{{ currentMonth }}月 · 实收 vs 预估</div>
         </div>
       </div>
-    </template>
-
-    <!-- 实际月历 -->
-    <template v-if="activeTab === 'actual'">
-      <div class="calendar" v-loading="loading">
-        <div class="cal-header">
-          <div class="cal-weekday" v-for="w in weekDays" :key="w">{{ w }}</div>
-        </div>
-        <div class="cal-body">
-          <div class="cal-cell" v-for="(item, idx) in actualCalendarDays" :key="idx"
-            :class="{ empty: !item }"
-            :style="item ? cellBg(item.total) : ''">
-            <template v-if="item">
-              <div class="cell-day" :class="{ today: item.date === new Date().toISOString().slice(0,10) }">{{ item.day }}</div>
-              <div class="cell-content">
-                <div class="cell-row lunch-color">午 ¥{{ formatMoney(item.lunch?.total_revenue || 0) }}</div>
-                <div class="cell-row dinner-color">晚 ¥{{ formatMoney(item.dinner?.total_revenue || 0) }}</div>
-                <div class="cell-row total-row">合 ¥{{ formatMoney(item.total) }}</div>
-              </div>
-            </template>
-          </div>
-        </div>
+      <div class="page-card__body">
+        <v-chart :option="monthChartOption" autoresize style="height: 260px;" />
       </div>
-    </template>
-
-    <!-- 月度柱状图 - 两个Tab共享 -->
-    <el-card shadow="hover" class="chart-card">
-      <v-chart :option="monthChartOption" autoresize style="height: 240px;" />
-    </el-card>
+    </div>
 
     <!-- 预估录入弹窗 -->
     <el-dialog v-model="forecastDialogVisible" :title="editingDate + ' 预估营业额录入'" width="720px" destroy-on-close>
@@ -528,118 +538,42 @@ onMounted(() => {
 <style scoped>
 .revenue-page { width: 100%; }
 
-.time-cards {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  background: #fff;
-}
-.time-card {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 10px 14px;
-  text-align: center;
-  transition: all 0.2s;
-}
-.time-card.active {
-  background: #ecf5ff;
-  border: 1px solid #b3d8ff;
-  cursor: pointer;
-}
-.time-card-label {
-  font-size: 11px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.time-card-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 24px;
-}
-.time-card-sub {
-  font-size: 11px;
-  color: #909399;
-  margin-top: 2px;
-}
-.time-card.active .time-card-label { color: #409eff; }
-.time-card.active .time-card-value { color: #409eff; }
-.card-arrow {
-  padding: 4px 8px;
-  color: #409eff !important;
-}
 .month-dropdown-text {
   cursor: pointer;
   padding: 0 4px;
 }
 .month-dropdown-text:hover {
-  color: var(--el-color-primary);
-}
-
-.big-tabs {
-  display: flex;
-  border-bottom: 2px solid #e4e7ed;
-  flex-shrink: 0;
-  background: #fff;
-}
-.big-tab {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0;
-  font-size: 15px;
-  font-weight: 500;
-  color: #909399;
-  background: #fafafa;
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  transition: all 0.2s;
-  user-select: none;
-}
-.big-tab:hover { color: #606266; }
-.big-tab.active {
-  color: #409eff;
-  background: #fff;
-  border-bottom-color: #409eff;
-  font-weight: 600;
+  color: var(--gold);
 }
 
 .month-total-value { font-size: 18px; font-weight: 700; }
 
-.lunch-color { color: #e6a23c; }
-.dinner-color { color: #409eff; }
+.lunch-color { color: #8a6e2f; }
+.dinner-color { color: var(--gold); }
 
 /* Calendar */
 .calendar {
-  margin-top: 10px;
-  background: #fff;
-  border-radius: 6px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.05);
   overflow: hidden;
 }
 
 .cal-header {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  background: #f5f7fa;
-  border-bottom: 1px solid #ebeef5;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
 }
 
-.cal-weekday { text-align: center; padding: 8px 0; font-weight: 600; font-size: 13px; color: #606266; }
+.cal-weekday { text-align: center; padding: 8px 0; font-weight: 600; font-size: 13px; color: var(--text-secondary); }
 
 .cal-body { display: grid; grid-template-columns: repeat(7, 1fr); }
 
 .cal-cell {
   min-height: 72px;
   padding: 6px 4px;
-  border-right: 1px solid #f0f0f0;
-  border-bottom: 1px solid #f0f0f0;
+  border-right: 1px solid rgba(128,101,53,0.08);
+  border-bottom: 1px solid rgba(128,101,53,0.08);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--transition-fast);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -648,16 +582,16 @@ onMounted(() => {
 
 .cal-cell:nth-child(7n) { border-right: none; }
 
-.cal-cell:hover { box-shadow: inset 0 0 0 2px #409eff; z-index: 1; }
+.cal-cell:hover { box-shadow: inset 0 0 0 2px var(--gold); z-index: 1; }
 
-.cal-cell.empty { background: #fafafa; cursor: default; }
+.cal-cell.empty { background: var(--bg-secondary); cursor: default; }
 .cal-cell.empty:hover { box-shadow: none; }
 
-.cell-day { font-size: 13px; font-weight: 600; color: #606266; margin-bottom: 4px; text-align: center; }
+.cell-day { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 4px; text-align: center; }
 
 .cell-day.today {
   display: inline-block;
-  background: #409eff;
+  background: var(--gold);
   color: #fff;
   border-radius: 50%;
   width: 22px; height: 22px; line-height: 22px; text-align: center;
@@ -665,11 +599,7 @@ onMounted(() => {
 
 .cell-content { font-size: 12px; line-height: 1.6; text-align: center; width: 100%; }
 .cell-row { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.total-row { font-weight: 600; color: #303133; border-top: 1px solid #ebeef5; margin-top: 2px; padding-top: 2px; }
-
-/* Chart */
-.chart-card { margin-top: 10px; }
-.chart-card :deep(.el-card__body) { padding: 10px; }
+.total-row { font-weight: 600; color: var(--text-primary); border-top: 1px solid var(--border); margin-top: 2px; padding-top: 2px; }
 
 /* Dialog - forecast */
 .dialog-body { padding: 0 4px; }
@@ -680,37 +610,37 @@ onMounted(() => {
   font-size: 15px; font-weight: 700; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 2px solid;
 }
 
-.lunch-section .period-section-title { border-color: #e6a23c; }
-.dinner-section .period-section-title { border-color: #409eff; }
+.lunch-section .period-section-title { border-color: #8a6e2f; }
+.dinner-section .period-section-title { border-color: var(--gold); }
 
 .rev-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 
-.rev-table th { background: #f5f7fa; padding: 8px 4px; text-align: center; font-weight: 600; color: #606266; border-bottom: 1px solid #ebeef5; }
+.rev-table th { background: var(--bg-secondary); padding: 8px 4px; text-align: center; font-weight: 600; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
 .rev-table th:first-child { text-align: left; }
-.rev-table td { padding: 6px 4px; text-align: center; border-bottom: 1px solid #f0f0f0; }
+.rev-table td { padding: 6px 4px; text-align: center; border-bottom: 1px solid rgba(128,101,53,0.08); }
 .rev-table td:first-child { text-align: left; }
 .rev-table :deep(.el-input-number) { width: 80px; }
 .rev-table :deep(.el-input-number .el-input__inner) { text-align: center; }
 
 .area-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; }
-.area-tag.hall { background: #fdf6ec; color: #e6a23c; }
-.area-tag.banquet { background: #ecf5ff; color: #409eff; }
-.area-tag.room { background: #f0f9eb; color: #67c23a; }
-.area-tag.delivery { background: #fef0f0; color: #f56c6c; }
+.area-tag.hall { background: rgba(201,168,76,0.12); color: #8a6e2f; }
+.area-tag.banquet { background: var(--gold-soft); color: var(--gold); }
+.area-tag.room { background: var(--success-bg); color: var(--success); }
+.area-tag.delivery { background: var(--destructive-bg); color: var(--destructive); }
 
-.rev-cell { font-weight: 600; color: #909399; white-space: nowrap; }
-.subtotal-row td { border-bottom: none; font-weight: 700; color: #303133; padding-top: 10px; }
+.rev-cell { font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.subtotal-row td { border-bottom: none; font-weight: 700; color: var(--text-primary); padding-top: 10px; }
 .total-cell { font-size: 14px !important; }
 
 .dialog-day-total {
   display: flex; justify-content: center; align-items: center; gap: 12px;
   margin-top: 16px; padding: 12px;
-  background: linear-gradient(135deg, #fff7e6, #fff1d6);
-  border-radius: 6px; border: 1px solid #f5d7a0;
-  font-weight: 600; color: #606266;
+  background: var(--gold-soft);
+  border-radius: var(--radius-sm); border: 1px solid rgba(201,168,76,0.3);
+  font-weight: 600; color: var(--text-secondary);
 }
 
-.day-total-num { font-size: 20px; font-weight: 700; color: #e6a23c; }
+.day-total-num { font-size: 20px; font-weight: 700; color: var(--gold); }
 
 @media (max-width: 700px) {
   .period-cards { flex-direction: column; }

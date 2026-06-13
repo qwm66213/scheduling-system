@@ -76,11 +76,15 @@ onMounted(() => {
 
 <template>
   <div class="accounts-page">
-    <div class="accounts-card" v-if="isSuperAdmin">
-      <div class="accounts-title">
-        <span>账号管理</span>
+    <div class="page-card" v-if="isSuperAdmin">
+      <div class="page-card__header">
+        <div>
+          <div class="page-card__title">账号管理</div>
+          <div class="page-card__desc">管理系统用户账号与权限</div>
+        </div>
         <el-button type="primary" @click="openAdd">新增账号</el-button>
       </div>
+      <div class="page-card__body--flush">
       <el-table :data="users" style="width: 100%">
         <el-table-column prop="username" label="账号" />
         <el-table-column label="门店">
@@ -117,6 +121,7 @@ onMounted(() => {
           </div>
         </template>
       </el-table>
+      </div>
     </div>
     <div v-else class="no-permission">
       <p>无权限访问此页面</p>
@@ -151,31 +156,13 @@ onMounted(() => {
 
 <style scoped>
 .accounts-page {
-  background: #fff;
-  border-radius: 4px;
   min-height: calc(100vh - 60px - 32px);
-  padding: 16px;
-}
-.accounts-card {
-  border: 1px solid #ebeef5;
-  border-radius: 8px;
-  overflow: hidden;
-}
-.accounts-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #303133;
-  padding: 12px 16px;
-  border-bottom: 1px solid #ebeef5;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .no-permission {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 300px;
-  color: #909399;
+  color: var(--text-muted);
 }
 </style>

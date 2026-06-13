@@ -165,13 +165,13 @@ watch(selectedStoreId, () => {
           <el-select v-model="selectedDate" placeholder="选择日期" size="small" style="width: 140px;" :disabled="!getStoreId()">
             <el-option v-for="d in dateOptions" :key="d" :label="d" :value="d" />
             <template #empty>
-              <div style="padding: 10px; text-align: center; color: #909399;">
+              <div style="padding: 10px; text-align: center; color: var(--text-muted);">
                 {{ loading ? '加载中...' : '暂无数据' }}
               </div>
             </template>
           </el-select>
         </div>
-        <div class="time-card-sub" v-if="!getStoreId()" style="color: #f56c6c;">请先选择门店</div>
+        <div class="time-card-sub" v-if="!getStoreId()" style="color: var(--destructive);">请先选择门店</div>
       </div>
       <div class="time-card active" @click="thisMonth">
         <div class="time-card-label">本月</div>
@@ -184,38 +184,46 @@ watch(selectedStoreId, () => {
       </div>
     </div>
 
-    <div class="dual-table" v-loading="loading">
-      <div class="table-half">
-        <div class="half-title">前厅（{{ frontData.length }}人）</div>
-        <el-table :data="frontData" border empty-text="暂无数据" style="width: 100%;" :show-header="true">
-          <el-table-column prop="employee_name" label="员工姓名" min-width="80" />
-          <el-table-column prop="position" label="岗位" min-width="70" align="center" />
-          <el-table-column label="出勤人天" min-width="70" align="center">
-            <template #default="{ row }">{{ row.front_check_count || 0 }}</template>
-          </el-table-column>
-          <el-table-column label="奖金" min-width="80" align="right">
-            <template #default="{ row }">
-              <span v-if="row.bonus === null">-</span>
-              <span v-else :style="{ color: row.bonus > 0 ? '#67c23a' : row.bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.bonus) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
+    <div class="dual-cards" v-loading="loading">
+      <div class="page-card">
+        <div class="page-card__header">
+          <div class="page-card__title">前厅（{{ frontData.length }}人）</div>
+        </div>
+        <div class="page-card__body--flush">
+          <el-table :data="frontData" empty-text="暂无数据" style="width: 100%;">
+            <el-table-column prop="employee_name" label="员工姓名" min-width="80" />
+            <el-table-column prop="position" label="岗位" min-width="70" align="center" />
+            <el-table-column label="出勤人天" min-width="70" align="center">
+              <template #default="{ row }">{{ row.front_check_count || 0 }}</template>
+            </el-table-column>
+            <el-table-column label="奖金" min-width="80" align="right">
+              <template #default="{ row }">
+                <span v-if="row.bonus === null">-</span>
+                <span v-else :style="{ color: row.bonus > 0 ? 'var(--success)' : row.bonus < 0 ? 'var(--destructive)' : 'var(--text-primary)' }">{{ fmt(row.bonus) }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
       </div>
-      <div class="table-half">
-        <div class="half-title">后厨（{{ backData.length }}人）</div>
-        <el-table :data="backData" border empty-text="暂无数据" style="width: 100%;" :show-header="true">
-          <el-table-column prop="employee_name" label="员工姓名" min-width="80" />
-          <el-table-column prop="position" label="岗位" min-width="70" align="center" />
-          <el-table-column label="出勤人天" min-width="70" align="center">
-            <template #default="{ row }">{{ row.back_check_count || 0 }}</template>
-          </el-table-column>
-          <el-table-column label="奖金" min-width="80" align="right">
-            <template #default="{ row }">
-              <span v-if="row.bonus === null">-</span>
-              <span v-else :style="{ color: row.bonus > 0 ? '#67c23a' : row.bonus < 0 ? '#f56c6c' : '#303133' }">{{ fmt(row.bonus) }}</span>
-            </template>
-          </el-table-column>
-        </el-table>
+      <div class="page-card">
+        <div class="page-card__header">
+          <div class="page-card__title">后厨（{{ backData.length }}人）</div>
+        </div>
+        <div class="page-card__body--flush">
+          <el-table :data="backData" empty-text="暂无数据" style="width: 100%;">
+            <el-table-column prop="employee_name" label="员工姓名" min-width="80" />
+            <el-table-column prop="position" label="岗位" min-width="70" align="center" />
+            <el-table-column label="出勤人天" min-width="70" align="center">
+              <template #default="{ row }">{{ row.back_check_count || 0 }}</template>
+            </el-table-column>
+            <el-table-column label="奖金" min-width="80" align="right">
+              <template #default="{ row }">
+                <span v-if="row.bonus === null">-</span>
+                <span v-else :style="{ color: row.bonus > 0 ? 'var(--success)' : row.bonus < 0 ? 'var(--destructive)' : 'var(--text-primary)' }">{{ fmt(row.bonus) }}</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </div>
       </div>
     </div>
   </div>
@@ -223,73 +231,19 @@ watch(selectedStoreId, () => {
 
 <style scoped>
 .personal-page {
-  display: flex;
-  flex-direction: column;
-  background: #fff;
-  border-radius: 4px;
+  min-height: calc(100vh - 60px - 32px);
 }
 .time-cards {
-  display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  padding: 14px 16px;
-  flex-shrink: 0;
 }
-.time-card {
-  background: #f5f7fa;
-  border-radius: 8px;
-  padding: 10px 14px;
-  text-align: center;
-  transition: all 0.2s;
+.dual-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
 }
-.time-card.active {
-  background: #ecf5ff;
-  border: 1px solid #b3d8ff;
-  cursor: pointer;
-}
-.time-card-label {
-  font-size: 11px;
-  color: #909399;
-  margin-bottom: 4px;
-}
-.time-card-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  min-height: 24px;
-}
-.time-card-sub {
-  font-size: 11px;
-  color: #909399;
-  margin-top: 2px;
-}
-.time-card.active .time-card-label { color: #409eff; }
-.time-card.active .time-card-value { color: #409eff; }
-.card-arrow {
-  padding: 4px 8px;
-  color: #409eff !important;
-}
-.dual-table {
-  display: flex;
-  gap: 16px;
-  padding: 0 16px 16px;
-  flex: 1;
-}
-.table-half {
-  flex: 1;
-  min-width: 0;
-}
-.half-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #303133;
-  padding: 10px 0;
-  text-align: center;
-  border-bottom: 2px solid #409eff;
-  margin-bottom: 0;
+@media (max-width: 900px) {
+  .dual-cards {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
