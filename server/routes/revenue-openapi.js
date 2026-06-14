@@ -21,7 +21,7 @@ function response(status, errmsg, data = null) {
 
 // 简单的内存缓存
 const cache = new Map();
-const CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 1天缓存
 
 function getCacheKey(prefix, params) {
   return `${prefix}_${JSON.stringify(params)}`;
@@ -248,14 +248,28 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
     if (endDate && date > endDate) continue;
 
     if (!dateMap.has(date)) {
-      dateMap.set(date, { date, lunch_revenue: 0, dinner_revenue: 0 });
+      dateMap.set(date, {
+        date,
+        lunch_revenue: 0,
+        dinner_revenue: 0,
+        total_consumption: 0,
+        bill_count: 0,
+        guest_count: 0,
+        table_count: 0
+      });
     }
     const dateData = dateMap.get(date);
 
-    const marketDetails = item.content.市别明细 || [];
+    // 累加消费总额、账单数、客流量、开台数
+    dateData.total_consumption += Number(item.content['消费总额'] || 0);
+    dateData.bill_count += Number(item.content['账单数'] || 0);
+    dateData.guest_count += Number(item.content['客流量'] || 0);
+    dateData.table_count += Number(item.content['开台数'] || 0);
+
+    const marketDetails = item.content['市别明细'] || [];
     for (const market of marketDetails) {
-      const revenue = market.营业额 || 0;
-      const marketName = market.市别 || '';
+      const revenue = market['营业额'] || 0;
+      const marketName = market['市别'] || '';
 
       if (marketName.includes('午')) {
         dateData.lunch_revenue += Number(revenue);
@@ -273,7 +287,11 @@ function parseBusinessSummary(results, storeId, startDate, endDate) {
       date: dateData.date,
       lunch_revenue: Number(dateData.lunch_revenue.toFixed(2)),
       dinner_revenue: Number(dateData.dinner_revenue.toFixed(2)),
-      total_revenue: Number((dateData.lunch_revenue + dateData.dinner_revenue).toFixed(2))
+      total_revenue: Number((dateData.lunch_revenue + dateData.dinner_revenue).toFixed(2)),
+      total_consumption: Number(dateData.total_consumption.toFixed(2)),
+      bill_count: dateData.bill_count,
+      guest_count: dateData.guest_count,
+      table_count: dateData.table_count
     });
   }
 
@@ -320,16 +338,29 @@ router.get('/', async (req, res) => {
         let results = [];
 
         if (!storeId) {
-          // 全部门店：并行获取
-          console.log('[Revenue] Fetching all stores in parallel...');
+          // 全部门店：一次查询所有门店，避免连接耗尽
+          const allStoresCacheKey = getCacheKey('revenue_all_stores', { start_date, end_date });
+
+          // 先检查缓存
+          const cachedAllStores = getFromCache(allStoresCacheKey);
+          if (cachedAllStores) {
+            console.log('[Revenue] Returning cached data for all stores');
+            return res.json(response(1, '获取成功', cachedAllStores));
+          }
+
+          console.log('[Revenue] Cache miss, fetching all stores at once...');
           const startTime = Date.now();
 
-          const fetchPromises = STORE_IDS.map(id => fetchAllExternalData(id, start_date, end_date));
-          const allResults = await Promise.all(fetchPromises);
-          results = allResults.flat();
+          // 直接传 null，一次性获取所有门店数据
+          results = await fetchAllExternalData(null, start_date, end_date);
 
           const elapsed = Date.now() - startTime;
           console.log(`[Revenue] Fetched all stores in ${elapsed}ms, total items: ${results.length}`);
+
+          const data = parseBusinessSummary(results, null, start_date, end_date);
+          setCache(allStoresCacheKey, data || []);
+          setCache(cacheKey, data || []);
+          return res.json(response(1, '获取成功', data || []));
         } else {
           results = await fetchAllExternalData(storeId, start_date, end_date);
         }

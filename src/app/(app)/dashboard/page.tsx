@@ -3,8 +3,9 @@
 import { PageHeading } from "@/components/layout/page-heading";
 import { KpiCard } from "@/components/layout/kpi-card";
 import { RevenueTrend } from "@/components/charts/revenue-trend";
-import { useDashboard } from "@/hooks/use-dashboard";
-import { DollarSign, ClipboardCheck, Coins, Users } from "lucide-react";
+import { useDashboard, getYesterday } from "@/hooks/use-dashboard";
+import { DollarSign, Coins, Receipt, Users2, UtensilsCrossed, Calendar } from "lucide-react";
+import { useState } from "react";
 
 // 格式化金额
 function formatCurrency(value: number): string {
@@ -15,7 +16,8 @@ function formatCurrency(value: number): string {
 }
 
 export default function DashboardPage() {
-  const { data, isLoading, isError } = useDashboard();
+  const [selectedDate, setSelectedDate] = useState<string>(getYesterday());
+  const { data, isLoading, isError } = useDashboard(selectedDate);
 
   const kpis = data?.kpis;
   const revenueTrend = data?.revenueTrend || [];
@@ -24,48 +26,70 @@ export default function DashboardPage() {
     <div>
       <PageHeading
         title="经营概览"
-        subtitle="实时掌握各门店关键经营指标 · 数据更新于最近7日"
+        subtitle="实时掌握各门店关键经营指标"
       />
 
+      {/* 日期筛选 */}
+      <div className="mb-6 flex items-center gap-4">
+        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-4 py-2">
+          <Calendar className="h-4 w-4 text-muted-foreground" />
+          <input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            max={new Date().toISOString().split("T")[0]}
+            className="bg-transparent border-none outline-none text-sm text-foreground"
+          />
+        </div>
+      </div>
+
       {/* KPI 卡片 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5 mb-8">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
         <KpiCard
-          label="最新营业额"
+          label="消费总额"
           value={
             isLoading
               ? "..."
               : isError
                 ? "--"
-                : formatCurrency(kpis?.todayRevenue ?? 0)
-          }
-          icon={DollarSign}
-        />
-        <KpiCard
-          label="出勤率"
-          value={
-            isLoading ? "..." : isError ? "--" : (kpis?.attendanceRate ?? 0)
-          }
-          unit="%"
-          icon={ClipboardCheck}
-        />
-        <KpiCard
-          label="奖金池"
-          value={
-            isLoading
-              ? "..."
-              : isError
-                ? "--"
-                : formatCurrency(kpis?.bonusPool ?? 0)
+                : `¥${(kpis?.totalConsumption ?? 0).toFixed(2)}`
           }
           icon={Coins}
         />
         <KpiCard
-          label="员工数"
+          label="营业额"
           value={
-            isLoading ? "..." : isError ? "--" : (kpis?.staffCount ?? 0)
+            isLoading
+              ? "..."
+              : isError
+                ? "--"
+                : `¥${(kpis?.todayRevenue ?? 0).toFixed(2)}`
+          }
+          icon={DollarSign}
+        />
+        <KpiCard
+          label="账单数"
+          value={
+            isLoading ? "..." : isError ? "--" : (kpis?.billCount ?? 0)
+          }
+          unit="单"
+          icon={Receipt}
+        />
+        <KpiCard
+          label="客流量"
+          value={
+            isLoading ? "..." : isError ? "--" : (kpis?.guestCount ?? 0)
           }
           unit="人"
-          icon={Users}
+          icon={Users2}
+        />
+        <KpiCard
+          label="开台数"
+          value={
+            isLoading ? "..." : isError ? "--" : (kpis?.tableCount ?? 0)
+          }
+          unit="台"
+          icon={UtensilsCrossed}
         />
       </div>
 
