@@ -1,0 +1,221 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'SimHei', system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+  --font-heading: var(--font-sans);
+
+  /* shadcn semantic colors */
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* cuisine-ops custom colors */
+  --color-gold: var(--gold);
+  --color-gold-bright: var(--gold-bright);
+  --color-gold-soft: var(--gold-soft);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* =====================================================
+   cuisine-ops 色彩系统（精确对齐 cuisine-ops preview）
+   ===================================================== */
+
+:root {
+  /* 页面背景 */
+  --background: #f7f5f0;
+  --foreground: #3d3929;
+
+  /* 卡片 */
+  --card: #fefdfb;
+  --card-foreground: #3d3929;
+
+  /* 弹出层 */
+  --popover: #fefdfb;
+  --popover-foreground: #3d3929;
+
+  /* 主色 - 金色 */
+  --primary: #c9a84c;
+  --primary-foreground: #fefdfb;
+
+  /* 次要色 */
+  --secondary: #f0ece3;
+  --secondary-foreground: #5a5545;
+
+  /* 静音色 */
+  --muted: #f0ece3;
+  --muted-foreground: #8a8578;
+
+  /* 强调色 */
+  --accent: rgba(201, 168, 76, 0.14);
+  --accent-foreground: #3d3929;
+
+  /* 危险色 */
+  --destructive: #c23b3b;
+
+  /* 边框 */
+  --border: rgba(128, 101, 53, 0.18);
+  --input: rgba(128, 101, 53, 0.18);
+  --ring: #c9a84c;
+
+  /* 图表色 */
+  --chart-1: #c9a84c;
+  --chart-2: #3a7d5c;
+  --chart-3: #c23b3b;
+  --chart-4: #5b8cb8;
+  --chart-5: #8b6e4f;
+
+  /* 圆角 */
+  --radius: 0.625rem;
+
+  /* 侧边栏 */
+  --sidebar: #18181b;
+  --sidebar-foreground: #a1a09e;
+  --sidebar-primary: #d9b860;
+  --sidebar-primary-foreground: #f0ece3;
+  --sidebar-accent: #27272a;
+  --sidebar-accent-foreground: #d9b860;
+  --sidebar-border: rgba(128, 101, 53, 0.22);
+  --sidebar-ring: #d9b860;
+
+  /* cuisine-ops 专属色 */
+  --gold: #c9a84c;
+  --gold-bright: #d9b860;
+  --gold-soft: rgba(201, 168, 76, 0.14);
+  --success: #3a7d5c;
+  --warning: #b8860b;
+}
+
+/* 暗色模式（暂不使用，保留变量定义） */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --card: #1a1a1a;
+  --card-foreground: #ededed;
+  --popover: #1a1a1a;
+  --popover-foreground: #ededed;
+  --primary: #d9b860;
+  --primary-foreground: #1a1a1a;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #ededed;
+  --muted: #2a2a2a;
+  --muted-foreground: #999999;
+  --accent: #2a2a2a;
+  --accent-foreground: #ededed;
+  --destructive: #e05555;
+  --border: #2a2a2a;
+  --input: #2a2a2a;
+  --ring: #d9b860;
+  --sidebar: #111118;
+  --sidebar-foreground: #a1a09e;
+  --sidebar-primary: #d9b860;
+  --sidebar-primary-foreground: #f0ece3;
+  --sidebar-accent: #27272a;
+  --sidebar-accent-foreground: #d9b860;
+  --sidebar-border: rgba(128, 101, 53, 0.22);
+  --sidebar-ring: #d9b860;
+  --gold: #d9b860;
+  --gold-bright: #e5c870;
+  --gold-soft: rgba(217, 184, 96, 0.14);
+  --success: #3aad80;
+  --warning: #d4a83a;
+}
+
+/* cuisine-ops 特效 */
+.gold-gradient-text {
+  background: linear-gradient(135deg, #d9b860 0%, #c9a84c 60%, #8a6e2f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.font-display {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'SimHei', system-ui, sans-serif;
+}
+
+/* 侧边栏菜单项 */
+.nav-item {
+  transition: all 0.15s ease;
+}
+.nav-item:hover {
+  background: var(--sidebar-accent);
+  color: var(--gold-bright);
+}
+.nav-item.active {
+  background: var(--gold-soft);
+  color: var(--gold-bright);
+  border-color: rgba(201, 168, 76, 0.3);
+}
+
+/* 表格行 hover */
+tbody tr {
+  transition: background 0.15s ease;
+}
+tbody tr:hover {
+  background: rgba(201, 168, 76, 0.04);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 3px;
+}

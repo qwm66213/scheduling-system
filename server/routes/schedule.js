@@ -53,10 +53,13 @@ function rateLimit(key) {
   return true; // 允许请求
 }
 
-// 排班表配置
-const SCHEDULE_API = {
-  tableKey: 'tb_58c08b4f443af'
+// 排班表配置 - 支持预排班和考勤记录两种数据表
+const SCHEDULE_TABLES = {
+  schedule: 'tb_58c08b4f443af',   // 预排班
+  attendance: 'tb_fa58d498f9bcb'  // 考勤记录
 };
+
+const DEFAULT_TYPE = 'schedule'; // 默认使用预排班表
 
 // 门店ID到门店名称的映射
 const STORE_ID_TO_NAME = config.stores.STORE_ID_TO_NAME;
@@ -77,9 +80,9 @@ const STORE_NAME_TO_ABBREV = {
 };
 
 // 查询 OpenAPI 是否存在指定记录（按标题查询）
-async function findExistingRecord(title) {
+async function findExistingRecord(title, tableKey) {
   const postData = {
-    table_key: SCHEDULE_API.tableKey,
+    table_key: tableKey,
     page_size: 1,
     current_page: 1,
     filters: [`标题:eq:${title}`]
@@ -91,26 +94,29 @@ async function findExistingRecord(title) {
   return null;
 }
 
-// GET 预排班记录
+// GET 预排班/考勤记录
 router.get('/', async (req, res) => {
   try {
-    const { start_date, end_date } = req.query;
-    console.log('[Schedule] Query params:', { start_date, end_date, store_id: req.query.store_id, reqStoreId: req.storeId });
+    const { start_date, end_date, type } = req.query;
+    const dataType = type || DEFAULT_TYPE;
+    const tableKey = SCHEDULE_TABLES[dataType];
+
+    console.log('[Schedule] Query params:', { type: dataType, start_date, end_date, store_id: req.query.store_id, reqStoreId: req.storeId });
 
     if (!start_date || !end_date) {
       return res.status(400).json(response(0, 'start_date and end_date required'));
     }
 
     // 频率限制检查
-    const rateLimitKey = `schedule_${req.query.store_id}_${start_date}_${end_date}`;
+    const rateLimitKey = `schedule_${dataType}_${req.query.store_id}_${start_date}_${end_date}`;
     if (!rateLimit(rateLimitKey)) {
       console.log('[Schedule] Rate limited, returning cached or empty');
-      const cachedData = getFromCache(getCacheKey('schedule', { store_id: req.query.store_id, start_date, end_date }));
+      const cachedData = getFromCache(getCacheKey('schedule', { type: dataType, store_id: req.query.store_id, start_date, end_date }));
       return res.json(response(1, '获取成功', cachedData || []));
     }
 
     // 检查缓存
-    const cacheKey = getCacheKey('schedule', { store_id: req.query.store_id, start_date, end_date });
+    const cacheKey = getCacheKey('schedule', { type: dataType, store_id: req.query.store_id, start_date, end_date });
     const cachedData = getFromCache(cacheKey);
     if (cachedData) {
       console.log('[Schedule] Returning cached data');
@@ -125,7 +131,7 @@ router.get('/', async (req, res) => {
       return res.json(response(1, '获取成功', []));
     }
 
-    // 调用 OpenAPI 查询预排班数据
+    // 调用 OpenAPI 查询数据
     // 分页查询所有排班数据
     const allResults = [];
     let currentPage = 1;
@@ -133,7 +139,7 @@ router.get('/', async (req, res) => {
 
     while (true) {
       const postData = {
-        table_key: SCHEDULE_API.tableKey,
+        table_key: tableKey,
         page_size: pageSize,
         current_page: currentPage,
         filters: [`所属门店:eq:${storeName}`],
@@ -261,25 +267,32 @@ function toApiStatus(status, secondmentStore = '') {
   return statusMap[status] || '';
 }
 
-// POST 批量保存预排班
+// POST 批量保存预排班/考勤记录
 router.post('/batch', async (req, res) => {
   try {
-    const { records } = req.body;
+    const { records, type } = req.body;
     if (!Array.isArray(records) || records.length === 0) {
       return res.status(400).json(response(0, 'records array required'));
     }
 
+    const dataType = type || DEFAULT_TYPE;
+    const tableKey = SCHEDULE_TABLES[dataType];
+
     // 从第一条记录中获取 store_id，或使用 req.storeId
     const storeId = records[0]?.store_id || req.storeId;
     const storeName = STORE_ID_TO_NAME[storeId] || '';
-    console.log('[Schedule] Batch save, storeId:', storeId, 'storeName:', storeName);
+    console.log('[Schedule] Batch save, type:', dataType, 'storeId:', storeId, 'storeName:', storeName);
     let successCount = 0;
 
     // 先按 日期+员工编码 分组，合并上午和下午状态
     const grouped = {};
+    const affectedDates = new Set(); // 记录受影响的日期
+
     for (const r of records) {
       if (!r.employee_id || !r.date || !r.period) continue;
       const key = `${r.date}_${r.employee_id}`;
+      affectedDates.add(r.date.slice(0, 10)); // 只保留日期部分
+
       if (!grouped[key]) {
         grouped[key] = {
           employee_id: r.employee_id,
@@ -317,7 +330,7 @@ router.post('/batch', async (req, res) => {
       const month = r.date ? parseInt(r.date.slice(5, 7), 10) : 1;
 
       // 先查询已有记录
-      const existing = await findExistingRecord(title);
+      const existing = await findExistingRecord(title, tableKey);
 
       // 构建记录数据
       const recordData = {
@@ -354,7 +367,7 @@ router.post('/batch', async (req, res) => {
 
         // 更新记录
         const result = await callOpenAPI('/open-api/v1/data/records', {
-          table_key: SCHEDULE_API.tableKey,
+          table_key: tableKey,
           record_key: existing.record_key,
           fields: updateFields
         }, 'PUT');
@@ -378,10 +391,20 @@ router.post('/batch', async (req, res) => {
         }
 
         const result = await callOpenAPI('/open-api/v1/data/records', {
-          table_key: SCHEDULE_API.tableKey,
+          table_key: tableKey,
           records: [recordData]
         }, 'POST');
         if (result) successCount++;
+      }
+    }
+
+    // 保存成功后，清除该门店该类型的排班缓存
+    if (storeId) {
+      for (const cacheKey of cache.keys()) {
+        // 匹配格式：schedule_{"type":"schedule",...,"store_id":"5",...}
+        if (cacheKey.includes(`"type":"${dataType}"`) && cacheKey.includes(`"store_id":"${storeId}"`)) {
+          cache.delete(cacheKey);
+        }
       }
     }
 
